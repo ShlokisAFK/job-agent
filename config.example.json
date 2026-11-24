@@ -7,10 +7,12 @@
   "ntfy_topic": "PUT-A-LONG-RANDOM-TOPIC-HERE",
   "daily_time": "09:00",
   "max_wakes_per_day": 2,
-  "shortlist_size": 30,
+  "shortlist_size": 20,
   "claude_timeout_s": 600,
   "profile": {
     "grad_year": 2028,
-    "cgpa": 7.74
-  }
+    "cgpa": 7.0
+  },
+  "profile_md": "D:/Claude/cv/job_profile.md",
+  "chars_per_job": 2000
 }

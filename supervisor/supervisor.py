@@ -144,12 +144,14 @@ class Supervisor:
         return r.returncode, (r.stdout or "")[-2000:], (r.stderr or "")[-1000:]
 
     def prepare_context(self, jobs, short, notes):
-        src = Path(self.cfg["master_resume"])
-        shutil.copyfile(src, self.ws / "context" / "master_resume.md")
+        # A compact profile (about 3 KB) is read on every wake instead of the full master resume.
+        src = Path(self.cfg.get("profile_md") or self.cfg["master_resume"])
+        shutil.copyfile(src, self.ws / "context" / "profile.md")
+        (self.ws / "context" / "master_resume.md").unlink(missing_ok=True)
         out = ["# Candidates (pre-ranked by keywords; judge them yourself)", ""]
         for s, j in short:
             out += [f"## {j['key']}", f"{j['company_name']} | {j['title']} | {j['location']} | score {s}",
-                    j["description"][:3000], ""]
+                    j["description"][:self.cfg.get("chars_per_job", 2000)], ""]
         (self.ws / "candidates.md").write_text("\n".join(out), encoding="utf-8")
         rows = tracker.read(self.ws / "tracker.csv")
         recent = [f"- #{r['id']} {r['company']}: {r['title']} -> {r['status'] or 'no update yet'} {r['notes']}"

@@ -37,6 +37,8 @@ flowchart LR
 | **Me** | Phone | Reads the digest, sends drafts myself, replies `3 sent`, `7 skip`, `2 replied - call Friday`. |
 
 ## Design choices
+- **Small reads per wake.** Claude reads a 3 KB candidate profile (not the full resume) and a shortlist of 20 jobs,
+  2,000 characters each, so each wake reads roughly 40 KB.
 - **Files are the memory.** Claude starts every session with no memory. `state.md` (its own notes, under 60 lines),
   `chat.md`, `schedule.md` and `log.jsonl` carry everything between runs, so each wake-up reads about a page.
   Every file has one writer, so two machines never corrupt the same file.

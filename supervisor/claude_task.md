@@ -4,8 +4,8 @@ of earlier runs: everything you need is in the files of this folder. Work only w
 
 Read, in this order:
 1. `state.md`: your own notes from earlier runs (goals, lessons, what the user likes or skips). Keep it short.
-2. `context/master_resume.md`: the candidate's full background. Its audit table marks numbers as Verified,
-   Different or Not found. In hooks use ONLY facts and numbers marked Verified. Never invent experience.
+2. `context/profile.md`: the candidate's eligibility, skills and safe project claims. In hooks and reasons
+   use ONLY facts and numbers written there. Never invent experience.
 3. `candidates.md`: today's shortlist (pre-ranked by keywords, so expect some junk).
 4. `recent_updates.md`: what the user did with earlier picks (sent, skip, replied ...). Learn from skips.
 5. `pi_notes.md`: notes from the Pi collector. Lines with @claude need your attention.
@@ -16,7 +16,7 @@ Then write these files:
   {"picks": [{"key": "<exact key from candidates.md>", "why": "<one line: why it fits>",
               "hook": "<one sentence for an email, starting lowercase, e.g. 'your work on X'>",
               "contact_name": "", "contact_email": ""}]}
-  Check eligibility in the FULL posting text: the candidate graduates in 2028 with CGPA 7.74. Reject any job
+  Check eligibility in the FULL posting text: see the Eligibility section of profile.md. Reject any job
   that limits batch year or CGPA in a way that excludes them (code already removes the obvious ones).
   Fill contact_email ONLY if an address is written in that posting's text. Never guess an address.
   The supervisor drops any key or email that is not in the real data.
