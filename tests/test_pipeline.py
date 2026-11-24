@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "pi"))
 import fetch_jobs  # noqa: E402
-from agent import picks, rank, tracker  # noqa: E402
+import pi_agent  # noqa: E402
+from agent import eligibility, picks, rank, tracker  # noqa: E402
 from supervisor.supervisor import Supervisor  # noqa: E402
 
 
@@ -142,6 +143,59 @@ class SupervisorTests(unittest.TestCase):
         # a was picked, b was shown and not picked: neither comes back
         self.assertEqual(self.sup().run(force=True), "nothing new")
         self.assertEqual(self.calls, 1)
+
+
+class EligibilityTests(unittest.TestCase):
+    P = {"grad_year": 2028, "cgpa": 7.74}
+
+    def check(self, text):
+        return eligibility.check({"title": "", "description": text}, self.P)
+
+    def test_rules_out(self):
+        self.assertIn("2027", self.check("Minimum eligibility criteria - CGPA 8 and above - 2027 graduates only"))
+        self.assertIn("CGPA", self.check("Need 8.5+ CGPA. 2028 batch."))
+
+    def test_keeps(self):
+        for t in ("2027/28 graduates welcome", "graduating in 2028", "7.5+ CGPA", "no rules at all",
+                  "class of 2027 or 2028"):
+            self.assertEqual(self.check(t), "", t)
+
+    def test_shortlist_drops_ineligible(self):
+        jobs = [job("a", desc="python CGPA 8 and above, 2027 graduates"), job("b")]
+        keys = [j["key"] for _, j in rank.shortlist(jobs, set(), profile=self.P)]
+        self.assertEqual(keys, ["b"])
+
+
+class PiAgentTests(unittest.TestCase):
+    def fake_fetch(self, source, slug):
+        if (source, slug) == ("lever", "razorpay"):
+            return [job("lv:razorpay:1")]
+        raise OSError("404")
+
+    def test_add_only_verified_boards(self):
+        cfg = {"location_words": ["india"], "companies": [{"name": "Druva", "source": "greenhouse", "slug": "druva"}]}
+        actions = [{"type": "add_company", "name": "Razorpay"}, {"type": "add_company", "name": "Nope Inc"},
+                   {"type": "remove_company", "name": "Druva"}, {"type": "run_shell", "cmd": "rm -rf /"},
+                   {"type": "add_location", "word": "pune; rm"}]
+        changed, report = pi_agent.apply(actions, cfg, fetcher=self.fake_fetch)
+        self.assertTrue(changed)
+        self.assertEqual(cfg["companies"], [{"name": "Razorpay", "source": "lever", "slug": "razorpay"}])
+        self.assertEqual(cfg["location_words"], ["india"])
+        self.assertTrue(any("not added" in r for r in report))
+        self.assertTrue(any("ignored unknown action" in r for r in report))
+
+    def test_messages_handled_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "pi_inbox.md").write_text("- [claude 2026-11-24] add company Razorpay\nnot a message\n")
+            cfg = d / "companies.json"
+            cfg.write_text(json.dumps({"location_words": [], "companies": []}))
+            ask = lambda m: [{"type": "add_company", "name": "Razorpay"}]
+            out = pi_agent.run(d, cfg, ask=ask, fetcher=self.fake_fetch)
+            self.assertEqual(len(out), 1)
+            self.assertIn("added", out[0])
+            self.assertEqual(pi_agent.run(d, cfg, ask=ask, fetcher=self.fake_fetch), [])
+            self.assertIn("pi-agent", (d / "pi_outbox.md").read_text())
 
 
 if __name__ == "__main__":

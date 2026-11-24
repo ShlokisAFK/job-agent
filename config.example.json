@@ -8,5 +8,9 @@
   "daily_time": "09:00",
   "max_wakes_per_day": 2,
   "shortlist_size": 30,
-  "claude_timeout_s": 600
+  "claude_timeout_s": 600,
+  "profile": {
+    "grad_year": 2028,
+    "cgpa": 7.74
+  }
 }

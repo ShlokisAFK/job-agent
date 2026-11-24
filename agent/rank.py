@@ -5,6 +5,8 @@ It is deliberately simple: Claude makes the real judgment on the shortlist.
 """
 import re
 
+from . import eligibility
+
 POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
     "intern": 6, "internship": 6, "graduate": 4, "new grad": 5, "fresher": 5, "entry level": 4, "university": 3,
     "machine learning": 4, "ml ": 3, "deep learning": 4, "ai ": 2, "llm": 3, "nlp": 2, "computer vision": 3,
@@ -39,8 +41,10 @@ def score(job):
     return s
 
 
-def shortlist(jobs, exclude_keys, n=30):
-    scored = [(score(j), j) for j in jobs if j["key"] not in exclude_keys]
+def shortlist(jobs, exclude_keys, n=30, profile=None):
+    """Top n by score. Jobs whose posting rules you out (batch year, CGPA) never reach Claude."""
+    profile = profile or {}
+    scored = [(score(j), j) for j in jobs if j["key"] not in exclude_keys and not eligibility.check(j, profile)]
     scored = [(s, j) for s, j in scored if s > 0]  # negative = clearly not a student role
     scored.sort(key=lambda sj: (sj[0], sj[1].get("posted", "")), reverse=True)
     return scored[:n]

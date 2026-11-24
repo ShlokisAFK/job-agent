@@ -16,12 +16,16 @@ Then write these files:
   {"picks": [{"key": "<exact key from candidates.md>", "why": "<one line: why it fits>",
               "hook": "<one sentence for an email, starting lowercase, e.g. 'your work on X'>",
               "contact_name": "", "contact_email": ""}]}
+  Check eligibility in the FULL posting text: the candidate graduates in 2028 with CGPA 7.74. Reject any job
+  that limits batch year or CGPA in a way that excludes them (code already removes the obvious ones).
   Fill contact_email ONLY if an address is written in that posting's text. Never guess an address.
   The supervisor drops any key or email that is not in the real data.
 - `state.md`: rewrite it (under 60 lines) with what you learned and what to do next time.
 - `schedule.md`: one line `next_wake: YYYY-MM-DDTHH:MM` (local time). Default: tomorrow 09:00.
-- `pi_inbox.md`: append short messages for the Pi only if something must change (e.g. a board keeps failing,
-  suggest a company to add). Otherwise leave it.
+- `pi_inbox.md`: append one line starting `- [claude YYYY-MM-DD]` only if something must change. The Pi agent is
+  a small local model that can ONLY add a company, remove a company or add a location word, and it checks that
+  a public Greenhouse/Lever/Ashby board exists before adding. Write plain requests like
+  "add company Razorpay; remove company Druva". Its replies appear in pi_notes.md next time.
 - `chat.md`: append 2-5 lines summarising this run, prefixed with `- [claude]`.
 
 Rules: do not create any other files. Do not copy job links or dates into your text; the supervisor

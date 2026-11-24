@@ -149,7 +149,7 @@ class Supervisor:
         out = ["# Candidates (pre-ranked by keywords; judge them yourself)", ""]
         for s, j in short:
             out += [f"## {j['key']}", f"{j['company_name']} | {j['title']} | {j['location']} | score {s}",
-                    j["description"][:1200], ""]
+                    j["description"][:3000], ""]
         (self.ws / "candidates.md").write_text("\n".join(out), encoding="utf-8")
         rows = tracker.read(self.ws / "tracker.csv")
         recent = [f"- #{r['id']} {r['company']}: {r['title']} -> {r['status'] or 'no update yet'} {r['notes']}"
@@ -236,7 +236,8 @@ class Supervisor:
         rv = self.ws / "reviewed.txt"
         if rv.exists():
             excluded |= set(rv.read_text(encoding="utf-8").split())
-        short = rank.shortlist(list(jobs.values()), excluded, self.cfg.get("shortlist_size", 30))
+        short = rank.shortlist(list(jobs.values()), excluded, self.cfg.get("shortlist_size", 30),
+                               self.cfg.get("profile", {}))
         if not short and not urgent:
             self.log("nothing_new")
             self.set_next_wake((self.now + timedelta(days=1)).replace(hour=int(self.cfg.get("daily_time", "09:00")[:2]), minute=0))
