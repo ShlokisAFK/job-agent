@@ -1,0 +1,12 @@
+{
+  "workspace": "D:/Claude/job-agent/workspace",
+  "master_resume": "D:/Claude/cv/master_resume.md",
+  "outreach_dir": "D:/Claude/cv/outreach",
+  "pi_host": "pi-claude",
+  "pi_data_dir": "/home/shlok/job-agent/data",
+  "ntfy_topic": "PUT-A-LONG-RANDOM-TOPIC-HERE",
+  "daily_time": "09:00",
+  "max_wakes_per_day": 2,
+  "shortlist_size": 30,
+  "claude_timeout_s": 600
+}

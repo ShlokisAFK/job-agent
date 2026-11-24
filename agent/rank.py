@@ -1,0 +1,46 @@
+"""Cheap pre-ranking so Claude only reads the most promising jobs, not hundreds.
+
+Plain keyword scoring against a profile built from master_resume.md.
+It is deliberately simple: Claude makes the real judgment on the shortlist.
+"""
+import re
+
+POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
+    "intern": 6, "internship": 6, "graduate": 4, "new grad": 5, "fresher": 5, "entry level": 4, "university": 3,
+    "machine learning": 4, "ml ": 3, "deep learning": 4, "ai ": 2, "llm": 3, "nlp": 2, "computer vision": 3,
+    "data scien": 3, "data engineer": 2, "python": 2, "pytorch": 3, "xgboost": 3, "fastapi": 2, "docker": 1,
+    "security": 2, "malware": 4, "threat": 2, "research": 2, "software engineer": 2, "backend": 1, "sde": 2,
+}
+NEGATIVE = {  # term -> penalty; matched in title only
+    "senior": 20, "sr.": 20, "staff": 20, "principal": 25, "lead": 20, "manager": 15, "director": 25,
+    "head of": 25, "vp": 25, "architect": 15, " ii": 8, " iii": 15, " iv": 20,
+    "sales": 25, "account executive": 25, "marketing": 20, "brand": 15, "recruit": 25, "talent": 25,
+    "legal": 25, "finance": 20, "accountant": 25, "hr ": 25, "collections": 25, "customer success": 20,
+    "gtm": 20, "strategy": 10,
+}
+YEARS = re.compile(r"(\d{1,2})\s*\+?\s*(?:years|yrs)", re.I)
+
+
+def score(job):
+    title = " " + job.get("title", "").lower() + " "
+    desc = " " + job.get("description", "").lower() + " "
+    s = 0
+    for term, w in POSITIVE.items():
+        if term in title:
+            s += 3 * w
+        elif term in desc:
+            s += w
+    for term, w in NEGATIVE.items():
+        if term in title:
+            s -= w
+    yrs = [int(y) for y in YEARS.findall(desc)]
+    if yrs and min(yrs) >= 4:  # "4+ years" and up: not a student role
+        s -= 8
+    return s
+
+
+def shortlist(jobs, exclude_keys, n=30):
+    scored = [(score(j), j) for j in jobs if j["key"] not in exclude_keys]
+    scored = [(s, j) for s, j in scored if s > 0]  # negative = clearly not a student role
+    scored.sort(key=lambda sj: (sj[0], sj[1].get("posted", "")), reverse=True)
+    return scored[:n]

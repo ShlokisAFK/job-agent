@@ -1,0 +1,10 @@
+config.json
+workspace/
+demo_ws/
+pi/data/
+__pycache__/
+*.pyc
+*.tmp
+.env
+*token*.json
+*client*.json

@@ -1,0 +1,12 @@
+{
+  "location_words": ["india", "bengaluru", "bangalore", "mumbai", "pune", "delhi", "gurgaon", "gurugram",
+                     "hyderabad", "noida", "chennai", "remote"],
+  "companies": [
+    {"name": "Sarvam AI", "source": "ashby", "slug": "sarvam"},
+    {"name": "Databricks", "source": "greenhouse", "slug": "databricks"},
+    {"name": "Rubrik", "source": "greenhouse", "slug": "rubrik"},
+    {"name": "InMobi", "source": "greenhouse", "slug": "inmobi"},
+    {"name": "Atlan", "source": "ashby", "slug": "atlan"},
+    {"name": "Druva", "source": "greenhouse", "slug": "druva"}
+  ]
+}

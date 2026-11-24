@@ -1,0 +1,148 @@
+import json
+import sys
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "pi"))
+import fetch_jobs  # noqa: E402
+from agent import picks, rank, tracker  # noqa: E402
+from supervisor.supervisor import Supervisor  # noqa: E402
+
+
+def job(key, title="ML Intern", desc="python pytorch", posted="2026-11-20T10:00:00Z", loc="Bengaluru"):
+    return {"key": key, "company": "x", "company_name": "X", "title": title, "location": loc,
+            "url": f"https://x/{key}", "posted": posted, "updated": "", "description": desc}
+
+
+class FetchTests(unittest.TestCase):
+    def test_normalize_keeps_real_fields_and_blank_dates(self):
+        g = fetch_jobs.normalize("greenhouse", "acme", {"id": 1, "title": "T", "absolute_url": "u",
+                                                        "location": {"name": "Pune"}, "content": "&lt;p&gt;Hi&lt;/p&gt;"})
+        self.assertEqual((g["key"], g["url"], g["posted"], g["description"]), ("gh:acme:1", "u", "", "Hi"))
+        lv = fetch_jobs.normalize("lever", "acme", {"id": "a", "text": "T", "createdAt": 0, "hostedUrl": "u"})
+        self.assertEqual(lv["posted"], "")  # missing/zero date stays empty, never invented
+
+    def test_location_filter(self):
+        words = ["india", "bengaluru", "remote"]
+        self.assertTrue(fetch_jobs.location_ok("Bengaluru, India", words))
+        self.assertTrue(fetch_jobs.location_ok("Remote", words))
+        self.assertFalse(fetch_jobs.location_ok("Remote - Germany", words))
+        self.assertFalse(fetch_jobs.location_ok("Paris", words))
+
+    def test_dedupe_and_one_bad_board(self):
+        cfg = {"location_words": ["pune"], "companies": [{"source": "greenhouse", "slug": "a"},
+                                                         {"source": "greenhouse", "slug": "broken"}]}
+
+        def fake(source, slug):
+            if slug == "broken":
+                raise OSError("down")
+            return [job("gh:a:1", loc="Pune"), job("gh:a:2", loc="Paris")]
+        with tempfile.TemporaryDirectory() as d:
+            new, errors = fetch_jobs.run(cfg, Path(d), fetcher=fake)
+            self.assertEqual([j["key"] for j in new], ["gh:a:1"])
+            self.assertEqual(len(errors), 1)
+            again, _ = fetch_jobs.run(cfg, Path(d), fetcher=fake)
+            self.assertEqual(again, [])
+            self.assertIn("@claude", (Path(d) / "pi_outbox.md").read_text())
+
+
+class RankTests(unittest.TestCase):
+    def test_students_above_seniors_and_negatives_dropped(self):
+        jobs = [job("a", "Senior Staff ML Engineer"), job("b", "Machine Learning Intern"),
+                job("c", "Sales Director", "sales")]
+        keys = [j["key"] for _, j in rank.shortlist(jobs, set())]
+        self.assertEqual(keys, ["b"])
+
+    def test_excluded_keys_skipped(self):
+        self.assertEqual(rank.shortlist([job("a")], {"a"}), [])
+
+
+class PicksTests(unittest.TestCase):
+    cands = {"a": job("a", desc="mail jobs@acme.com"), "b": job("b")}
+
+    def test_unknown_key_and_invented_email_dropped(self):
+        raw = json.dumps({"picks": [{"key": "zzz", "hook": "h"},
+                                    {"key": "a", "hook": "h", "contact_email": "jobs@acme.com"},
+                                    {"key": "b", "hook": "h", "contact_email": "guess@b.com"}]})
+        good, problems = picks.validate(raw, self.cands)
+        self.assertEqual([g["key"] for g in good], ["a", "b"])
+        self.assertEqual(good[0]["contact_email"], "jobs@acme.com")
+        self.assertEqual(good[1]["contact_email"], "")
+        self.assertEqual(len(problems), 2)
+
+    def test_bad_json_and_cap(self):
+        self.assertEqual(picks.validate("not json", self.cands)[0], [])
+        many = {f"k{i}": job(f"k{i}") for i in range(15)}
+        raw = json.dumps({"picks": [{"key": k, "hook": "h"} for k in many]})
+        self.assertEqual(len(picks.validate(raw, many)[0]), 10)
+
+    def test_digest_uses_real_dates(self):
+        rows = [{"id": "1", "company": "X", "title": "T", "location": "Pune", "posted": "", "why": "w",
+                 "url": "u", "draft": ""}]
+        self.assertIn("date not listed", picks.digest(rows, "2026-11-24"))
+
+
+class TrackerTests(unittest.TestCase):
+    def test_parse_and_apply(self):
+        ups, bad = tracker.parse_updates("# header\n3 sent\n7 SKIP\n2 replied - call Friday\nhello\n9 maybe")
+        self.assertEqual(ups, [("3", "sent", ""), ("7", "skip", ""), ("2", "replied", "call Friday")])
+        self.assertEqual(bad, ["hello", "9 maybe"])
+        rows = [{"id": "2", "status": "", "notes": ""}, {"id": "3", "status": "", "notes": ""}]
+        done, unknown = tracker.apply_updates(rows, ups, "2026-11-24")
+        self.assertEqual(rows[0]["status"], "replied")
+        self.assertEqual(rows[0]["notes"], "call Friday")
+        self.assertEqual(unknown, ["7"])
+
+
+class SupervisorTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self.tmp.name)
+        (self.ws / "inbox").mkdir()
+        (self.ws / "inbox" / "backlog.jsonl").write_text(json.dumps(job("a")) + "\n" + json.dumps(job("b")) + "\n")
+        resume = self.ws / "resume.md"
+        resume.write_text("resume")
+        self.cfg = {"demo": True, "master_resume": str(resume), "max_wakes_per_day": 1}
+        self.calls = 0
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fake_claude(self, _prompt):
+        self.calls += 1
+        (self.ws / "picks.json").write_text(json.dumps({"picks": [{"key": "a", "why": "fits", "hook": "h"}]}))
+        return 0, "", ""
+
+    def sup(self, hour=10):
+        return Supervisor(self.cfg, self.ws, now=datetime(2026, 11, 24, hour, 0), runner=self.fake_claude)
+
+    def test_stop_file_blocks_everything(self):
+        (self.ws / "STOP").write_text("")
+        self.assertEqual(self.sup().run(force=True), "stopped")
+        self.assertEqual(self.calls, 0)
+
+    def test_not_due_before_daily_time(self):
+        self.assertEqual(self.sup(hour=7).run(), "not due")
+
+    def test_wake_picks_and_daily_cap(self):
+        self.assertEqual(self.sup().run(), "picked 1")
+        rows = tracker.read(self.ws / "tracker.csv")
+        self.assertEqual((rows[0]["id"], rows[0]["url"]), ("1", "https://x/a"))  # link from data, not Claude
+        self.assertIn("next_wake: 2026-11-25T09:00", (self.ws / "schedule.md").read_text())
+        self.assertEqual(self.sup().run(force=True), "cap")
+        self.assertEqual(self.calls, 1)
+
+    def test_reviewed_jobs_not_shown_again(self):
+        self.sup().run()
+        self.cfg["max_wakes_per_day"] = 5
+        # a was picked, b was shown and not picked: neither comes back
+        self.assertEqual(self.sup().run(force=True), "nothing new")
+        self.assertEqual(self.calls, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
