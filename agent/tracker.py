@@ -3,12 +3,14 @@ import csv
 import os
 import re
 import tempfile
+from datetime import date
 from pathlib import Path
 
 PIPE_COLS = ["id", "key", "company", "title", "location", "url", "posted", "picked_on", "why", "hook", "draft"]
 YOUR_COLS = ["status", "updated_on", "notes"]
 COLUMNS = PIPE_COLS + YOUR_COLS
-STATUSES = {"sent", "skip", "applied", "replied", "interview", "rejected", "offer"}
+STATUSES = {"sent", "skip", "applied", "followed", "replied", "interview", "rejected", "offer"}
+WAITING = {"sent", "applied"}  # no answer yet; any later update (including "followed") ends the reminder
 
 
 def read(path):
@@ -64,3 +66,18 @@ def apply_updates(rows, updates, today):
             r["notes"] = (r.get("notes", "") + " | " if r.get("notes") else "") + note
         done.append((rid, status))
     return done, unknown
+
+
+def follow_ups(rows, today, after_days):
+    """Rows still waiting for an answer after `after_days`. Returns [(row, days_waiting)]."""
+    out = []
+    for r in rows:
+        if r.get("status") not in WAITING:
+            continue
+        try:
+            days = (date.fromisoformat(today) - date.fromisoformat(r.get("updated_on", ""))).days
+        except ValueError:
+            continue
+        if days >= after_days:
+            out.append((r, days))
+    return out

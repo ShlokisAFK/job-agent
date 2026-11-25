@@ -50,10 +50,12 @@ def score(job):
     return s
 
 
-def shortlist(jobs, exclude_keys, n=30, profile=None):
+def shortlist(jobs, exclude_keys, n=30, profile=None, verdicts=None):
     """Top n by score. Jobs whose posting rules you out (batch year, CGPA) never reach Claude."""
     profile = profile or {}
-    scored = [(score(j), j) for j in jobs if j["key"] not in exclude_keys and not eligibility.check(j, profile)]
+    verdicts = verdicts or {}  # the Pi model's title check: only an explicit "no" drops a job
+    scored = [(score(j), j) for j in jobs
+              if j["key"] not in exclude_keys and verdicts.get(j["key"]) != "no" and not eligibility.check(j, profile)]
     scored = [(s, j) for s, j in scored if s > 0]  # negative = clearly not a student role
     scored.sort(key=lambda sj: (sj[0], sj[1].get("posted", "")), reverse=True)
     return scored[:n]

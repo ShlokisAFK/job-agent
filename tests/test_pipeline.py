@@ -9,9 +9,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "pi"))
 import digger  # noqa: E402
+import judge  # noqa: E402
 import fetch_jobs  # noqa: E402
 import pi_agent  # noqa: E402
-from agent import eligibility, picks, rank, tracker  # noqa: E402
+from agent import eligibility, notify, picks, rank, tracker  # noqa: E402
 from supervisor.supervisor import Supervisor  # noqa: E402
 
 
@@ -444,6 +445,179 @@ class PiAgentTests(unittest.TestCase):
             self.assertIn("added", out[0])
             self.assertEqual(pi_agent.run(d, cfg, ask=ask, fetcher=self.fake_fetch), [])
             self.assertIn("pi-agent", (d / "pi_outbox.md").read_text())
+
+
+class JudgeTests(unittest.TestCase):
+    def write_backlog(self, d, jobs):
+        (d / "backlog.jsonl").write_text("".join(json.dumps(j) + "\n" for j in jobs), encoding="utf-8")
+
+    def verdicts(self, d):
+        return {r["key"]: r["v"] for r in map(json.loads, (d / "verdicts.jsonl").read_text().splitlines())}
+
+    def test_judges_each_job_once_and_asks_once_per_title(self):
+        asked = []
+
+        def ask(title):
+            asked.append(title)
+            return "No." if "Sales" in title else "yes"
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            self.write_backlog(d, [job("a", "ML Intern"), job("b", "ML Intern"), job("c", "Sales Intern")])
+            self.assertEqual(judge.run(d, ask=ask)["judged"], 3)
+            self.assertEqual(self.verdicts(d), {"a": "yes", "b": "yes", "c": "no"})
+            self.assertEqual(sorted(asked), ["ML Intern", "Sales Intern"])
+            self.assertEqual(judge.run(d, ask=ask)["judged"], 0)
+            self.assertEqual(len(asked), 2)
+
+    def test_newest_first_with_a_cap(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            old, new = job("old", "A"), job("new", "B")
+            old["fetched"], new["fetched"] = "2026-11-01", "2026-11-25"
+            self.write_backlog(d, [old, new])
+            judge.run(d, ask=lambda t: "yes", limit=1)
+            self.assertEqual(list(self.verdicts(d)), ["new"])
+
+    def test_unclear_answer_or_dead_model_writes_no_verdict(self):
+        def dead(title):
+            raise OSError("model down")
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            self.write_backlog(d, [job("a", "A"), job("b", "B")])
+            self.assertEqual(judge.run(d, ask=lambda t: "maybe?")["judged"], 0)
+            out = judge.run(d, ask=dead)
+            self.assertEqual((out["judged"], "model down" in out["error"]), (0, True))
+            self.assertEqual((d / "verdicts.jsonl").read_text(), "")
+
+
+class VerdictFilterTests(unittest.TestCase):
+    def test_only_an_explicit_no_drops_a_job(self):
+        jobs = [job("a"), job("b"), job("c")]
+        keys = {j["key"] for _, j in rank.shortlist(jobs, set(), verdicts={"a": "no", "b": "yes"})}
+        self.assertEqual(keys, {"b", "c"})  # c was never judged, so it stays
+
+    def test_supervisor_uses_the_pi_verdicts(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            (ws / "inbox").mkdir()
+            (ws / "inbox" / "backlog.jsonl").write_text(json.dumps(job("a")) + "\n" + json.dumps(job("b")) + "\n")
+            (ws / "inbox" / "verdicts.jsonl").write_text('{"key": "a", "v": "no"}\nbroken line\n')
+            (ws / "resume.md").write_text("resume")
+
+            def claude(_p):
+                (ws / "picks.json").write_text('{"picks": []}')
+                return 0, "", ""
+            cfg = {"demo": True, "master_resume": str(ws / "resume.md")}
+            Supervisor(cfg, ws, now=datetime(2026, 11, 26, 10, 0), runner=claude).run()
+            text = (ws / "candidates.md").read_text()
+            self.assertIn("## b", text)
+            self.assertNotIn("## a", text)
+
+
+def row(rid, status, updated, company="Acme"):
+    return {"id": rid, "key": f"k{rid}", "company": company, "title": "ML Intern", "status": status, "updated_on": updated}
+
+
+class FollowUpTests(unittest.TestCase):
+    def test_due_after_the_wait_only_for_sent_or_applied(self):
+        rows = [row("1", "sent", "2026-11-19"), row("2", "applied", "2026-11-10"), row("3", "sent", "2026-11-20"),
+                row("4", "replied", "2026-11-01"), row("5", "followed", "2026-11-01"), row("6", "", "")]
+        self.assertEqual([(r["id"], n) for r, n in tracker.follow_ups(rows, "2026-11-26", 7)], [("1", 7), ("2", 16)])
+
+    def test_followed_is_a_valid_update(self):
+        self.assertEqual(tracker.parse_updates("1 followed")[0], [("1", "followed", "")])
+
+
+class FollowUpDigestTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self.tmp.name)
+        (self.ws / "inbox").mkdir()
+        (self.ws / "resume.md").write_text("resume")
+        tracker.write(self.ws / "tracker.csv", [row("1", "sent", "2026-11-10")])
+        self.cfg = {"master_resume": str(self.ws / "resume.md"), "ntfy_topic": "t", "followup_days": 7}
+        self.sent = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_sup(self, day=26, hour=10):
+        from unittest import mock
+
+        def claude(_p):
+            (self.ws / "picks.json").write_text('{"picks": []}')
+            return 0, "", ""
+        with mock.patch("supervisor.supervisor.notify.send", side_effect=lambda t, title, body: self.sent.append((title, body))):
+            return Supervisor(self.cfg, self.ws, now=datetime(2026, 11, day, hour, 0), runner=claude).run()
+
+    def test_sent_even_when_there_are_no_new_jobs_and_only_once_a_day(self):
+        self.assertEqual(self.run_sup(), "nothing new")
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("#1 Acme", self.sent[0][1])
+        self.assertIn("1 followed", self.sent[0][1])
+        self.run_sup(hour=11)
+        self.assertEqual(len(self.sent), 1)
+
+    def test_included_in_the_daily_digest(self):
+        (self.ws / "inbox" / "backlog.jsonl").write_text(json.dumps(job("a")) + "\n")
+        self.run_sup()
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("Follow up", self.sent[0][1])
+
+
+class PhoneReplyTests(unittest.TestCase):
+    def test_ntfy_poll_returns_only_messages(self):
+        stream = ('{"id":"o","event":"open"}\n{"id":"m1","event":"message","message":"3 sent"}\n\nnot json\n'
+                  '{"id":"k","event":"keepalive"}\n')
+        seen_urls = []
+
+        def get(url):
+            seen_urls.append(url)
+            return stream
+        self.assertEqual(notify.poll("topic1", get=get), [("m1", "3 sent")])
+        self.assertEqual(seen_urls, ["https://ntfy.sh/topic1/json?poll=1&since=all"])
+
+    def setup_ws(self, d):
+        ws = Path(d)
+        tracker.write(ws / "tracker.csv", [row("1", "", ""), row("2", "", "")])
+        return ws
+
+    def test_replies_update_the_tracker_once_and_are_confirmed(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            ws = self.setup_ws(d)
+            cfg = {"ntfy_topic": "digest", "ntfy_reply_topic": "replies"}
+            msgs = [("m1", "1 sent; 2 skip - not for me\nhello there"), ("m2", "9 sent")]
+            sent = []
+            with mock.patch("supervisor.supervisor.notify.poll", return_value=msgs), \
+                    mock.patch("supervisor.supervisor.notify.send", side_effect=lambda *a: sent.append(a)):
+                for _ in range(2):  # ntfy keeps old messages, so the second run sees them again
+                    Supervisor(cfg, ws, now=datetime(2026, 11, 26, 10, 0)).read_phone_replies()
+            rows = tracker.read(ws / "tracker.csv")
+            self.assertEqual([(r["status"], r["notes"]) for r in rows], [("sent", ""), ("skip", "not for me")])
+            self.assertEqual(len(sent), 1)
+            topic, _, body = sent[0]
+            self.assertEqual(topic, "digest")
+            for part in ("#1 sent", "#2 skip", "hello there", "no job #9"):
+                self.assertIn(part, body)
+
+    def test_off_without_a_reply_topic_and_a_failed_poll_is_harmless(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            ws = self.setup_ws(d)
+            with mock.patch("supervisor.supervisor.notify.poll", side_effect=OSError("offline")) as p:
+                Supervisor({}, ws).read_phone_replies()
+                self.assertEqual(p.call_count, 0)
+                Supervisor({"ntfy_reply_topic": "r"}, ws).read_phone_replies()
+            self.assertIn("phone_poll_failed", (ws / "log.jsonl").read_text())
+
+    def test_reply_topic_must_differ_from_digest_topic(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            ws = self.setup_ws(d)
+            with mock.patch("supervisor.supervisor.notify.poll") as p:
+                Supervisor({"ntfy_topic": "same", "ntfy_reply_topic": "same"}, ws).read_phone_replies()
+            self.assertEqual(p.call_count, 0)
 
 
 if __name__ == "__main__":

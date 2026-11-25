@@ -48,6 +48,16 @@ def show_date(posted):
     return f"posted {posted[:10]}" if posted else "date not listed"
 
 
+def follow_up_lines(due):
+    """due: [(tracker row, days waiting)] from tracker.follow_ups."""
+    if not due:
+        return []
+    out = ["Follow up (no answer yet):"]
+    out += [f"#{r['id']} {r['company']}: {r['title']} ({r['status']} {days} days ago)" for r, days in due]
+    out.append(f"After you follow up, reply  {due[0][0]['id']} followed")
+    return out
+
+
 def digest(rows, today, extra_lines=()):
     """rows: tracker rows for today's picks. Markdown text for the phone notification."""
     out = [f"Top {len(rows)} jobs for {today}", ""]
@@ -59,6 +69,6 @@ def digest(rows, today, extra_lines=()):
             out.append(f"   draft ready in Gmail ({r['draft']})")
         out.append(f"   {link}")
     out.append("")
-    out.append("Reply in my_updates.md, e.g.  3 sent   7 skip   2 replied - call Friday")
+    out.append("Reply from your phone or in my_updates.md, one per line, e.g. 3 sent / 7 skip / 2 replied - call Friday")
     out.extend(extra_lines)
     return "\n".join(out)

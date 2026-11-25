@@ -1,5 +1,6 @@
 """Laptop supervisor: syncs with the Pi, decides whether to wake Claude, checks Claude's work,
-updates the tracker, makes Gmail drafts and pushes the digest to your phone.
+updates the tracker (from my_updates.md or phone replies), makes Gmail drafts and pushes the digest
+and follow-up reminders to your phone.
 
 Run it every 30 minutes (Task Scheduler) or by hand:
     python -m supervisor.supervisor            normal run
@@ -13,6 +14,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 from agent import notify, picks, rank, tracker  # noqa: E402
 
 WS_FILES = {"state.md": "# State\n(no runs yet)\n", "chat.md": "# Chat\n", "schedule.md": "",
-            "my_updates.md": "# Write one line per job: <id> <sent|skip|applied|replied|interview|rejected|offer> [- note]\n",
+            "my_updates.md": "# Write one line per job: <id> <sent|skip|applied|followed|replied|interview|rejected|offer> [- note]\n",
             "pi_inbox.md": ""}
 HARD_WAKE_CAP = 4  # never more than 4 Claude wakes a day, whatever config.json says
 
@@ -105,7 +107,7 @@ class Supervisor:
         host, remote = self.cfg.get("pi_host"), self.cfg.get("pi_data_dir")
         if not host:
             return
-        for name in ("backlog.jsonl", "pi_outbox.md"):
+        for name in ("backlog.jsonl", "pi_outbox.md", "verdicts.jsonl"):
             self._scp(f"{host}:{remote}/{name}", str(self.ws / "inbox" / name), name)
 
     def push_to_pi(self):
@@ -125,6 +127,20 @@ class Supervisor:
                 jobs[j["key"]] = j
         return jobs
 
+    def verdicts(self):
+        """The Pi model's yes/no per job key. Missing or broken lines simply mean "not judged"."""
+        p = self.ws / "inbox" / "verdicts.jsonl"
+        if not self.cfg.get("use_pi_verdicts", True) or not p.exists():
+            return {}
+        out = {}
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+                out[r["key"]] = r["v"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+        return out
+
     def new_pi_notes(self):
         """Pi notes not shown to Claude yet (tracked by line count)."""
         p = self.ws / "inbox" / "pi_outbox.md"
@@ -140,17 +156,74 @@ class Supervisor:
         ups, bad = tracker.parse_updates(text)
         if not ups and not bad:
             return []
+        done, unknown = self.apply_to_tracker(ups)
+        with (self.ws / "updates_archive.md").open("a", encoding="utf-8") as f:
+            f.write(f"\n## {self.today}\n" + "\n".join(l for l in text.splitlines() if l.strip() and not l.startswith("#")) + "\n")
+        p.write_text(WS_FILES["my_updates.md"] + "".join(f"# could not read: {b}\n" for b in bad), encoding="utf-8")
+        self.log("updates_merged", done=len(done), unknown=unknown, bad=bad)
+        return done
+
+    def apply_to_tracker(self, ups):
         rows = tracker.read(self.ws / "tracker.csv")
         done, unknown = tracker.apply_updates(rows, ups, self.today)
         tracker.write(self.ws / "tracker.csv", rows)
         for rid, status in done:
             if status == "sent":
                 self.outreach_mark_sent(next(r for r in rows if r["id"] == rid))
-        with (self.ws / "updates_archive.md").open("a", encoding="utf-8") as f:
-            f.write(f"\n## {self.today}\n" + "\n".join(l for l in text.splitlines() if l.strip() and not l.startswith("#")) + "\n")
-        p.write_text(WS_FILES["my_updates.md"] + "".join(f"# could not read: {b}\n" for b in bad), encoding="utf-8")
-        self.log("updates_merged", done=len(done), unknown=unknown, bad=bad)
+        return done, unknown
+
+    def read_phone_replies(self):
+        """Lines you publish to the private reply topic ("3 sent"), same strict format as my_updates.md."""
+        topic = self.cfg.get("ntfy_reply_topic")
+        if not topic:
+            return []
+        if topic == self.cfg.get("ntfy_topic"):  # our own digests would come back as replies
+            self.log("phone_replies_off", reason="ntfy_reply_topic must differ from ntfy_topic")
+            return []
+        try:
+            msgs = notify.poll(topic)
+        except Exception as e:
+            self.log("phone_poll_failed", err=str(e)[:200])
+            return []
+        seen_file = self.ws / "phone_seen.txt"
+        seen = set(seen_file.read_text(encoding="utf-8").split()) if seen_file.exists() else set()
+        fresh = [(i, text) for i, text in msgs if i not in seen]
+        if not fresh:
+            return []
+        text = "\n".join(part[:200] for _, m in fresh for part in re.split(r"[\n;]", m)[:30])
+        ups, bad = tracker.parse_updates(text)
+        done, unknown = self.apply_to_tracker(ups)
+        with seen_file.open("a", encoding="utf-8") as f:
+            f.write("".join(f"{i}\n" for i, _ in fresh))
+        self.log("phone_replies", done=len(done), unknown=unknown, bad=bad[:10])
+        answer = ([f"Recorded: #{rid} {status}" for rid, status in done] + [f"There is no job #{u}" for u in unknown]
+                  + [f"Could not read: {b}" for b in bad[:10]])
+        if answer:
+            self.push("job-agent: reply received", "\n".join(answer))
         return done
+
+    # ---------- phone ----------
+    def push(self, title, body):
+        topic = self.cfg.get("ntfy_topic")
+        if not topic or self.cfg.get("demo"):
+            return False
+        try:
+            notify.send(topic, title, body)
+        except Exception as e:
+            self.log("notify_failed", err=str(e)[:200])
+            return False
+        return True
+
+    def pending_follow_ups(self):
+        """Follow-up lines for today's first message; empty once they have been delivered today."""
+        mark = self.ws / "followups_sent.txt"
+        if mark.exists() and mark.read_text().strip() == self.today:
+            return []
+        due = tracker.follow_ups(tracker.read(self.ws / "tracker.csv"), self.today, self.cfg.get("followup_days", 7))
+        return picks.follow_up_lines(due)
+
+    def follow_ups_delivered(self):
+        (self.ws / "followups_sent.txt").write_text(self.today)
 
     # ---------- Claude ----------
     def _run_claude(self, prompt):
@@ -246,6 +319,7 @@ class Supervisor:
             return "stopped"
         self.pull_from_pi()
         self.merge_updates()
+        self.read_phone_replies()
         jobs = self.backlog()
         notes, n_lines = self.new_pi_notes()
         urgent = any("@claude" in n for n in notes)
@@ -259,16 +333,21 @@ class Supervisor:
         rv = self.ws / "reviewed.txt"
         if rv.exists():
             excluded |= set(rv.read_text(encoding="utf-8").split())
+        verdicts = self.verdicts()
         short = rank.shortlist(list(jobs.values()), excluded, self.cfg.get("shortlist_size", 30),
-                               self.cfg.get("profile", {}))
+                               self.cfg.get("profile", {}), verdicts)
         if not short and not urgent:
             self.log("nothing_new")
+            reminders = self.pending_follow_ups()
+            if reminders and self.push("job-agent: follow-ups", "\n".join(reminders)):
+                self.follow_ups_delivered()
             self.set_next_wake((self.now + timedelta(days=1)).replace(hour=int(self.cfg.get("daily_time", "09:00")[:2]), minute=0))
             return "nothing new"
         self.shortlist_keys = [j["key"] for _, j in short]
         self.prepare_context(jobs, short, notes)
         prompt = (ROOT / "supervisor" / "claude_task.md").read_text(encoding="utf-8")
-        self.log("wake", candidates=len(short), urgent=urgent)
+        self.log("wake", candidates=len(short), urgent=urgent,
+                 pi_said_no=sum(1 for k, v in verdicts.items() if v == "no" and k in jobs and k not in excluded))
         chat_before = len((self.ws / "chat.md").read_text(encoding="utf-8").splitlines())
         try:
             rc, out, err = self.runner(prompt)
@@ -295,14 +374,14 @@ class Supervisor:
             body = "\n".join([f"0 picks from {len(short)} jobs on {self.today}.", nxt, "",
                               "Claude said:", *(f"- {s}" for s in said or ["(no notes)"])])
             self.chat(f"picked 0 jobs; {nxt}")
+        reminders = self.pending_follow_ups()
+        if reminders:  # first in the message, so a long digest never cuts them off
+            body = "\n".join(reminders) + "\n\n" + body
         (self.ws / "digest.md").write_text(body, encoding="utf-8")
-        topic = self.cfg.get("ntfy_topic")
-        if topic and not self.cfg.get("demo"):
-            try:
-                notify.send(topic, title, body)
-                self.log("notified", n=len(new_rows))
-            except Exception as e:
-                self.log("notify_failed", err=str(e)[:200])
+        if self.push(title, body):
+            self.log("notified", n=len(new_rows))
+            if reminders:
+                self.follow_ups_delivered()
         self.push_to_pi()
         return f"picked {len(new_rows)}"
 
