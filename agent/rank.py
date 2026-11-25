@@ -11,11 +11,15 @@ POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
     "intern": 6, "internship": 6, "graduate": 4, "new grad": 5, "fresher": 5, "entry level": 4, "university": 3,
     "machine learning": 4, "ml ": 3, "deep learning": 4, "ai ": 2, "llm": 3, "nlp": 2, "computer vision": 3,
     "data scien": 3, "data engineer": 2, "python": 2, "pytorch": 3, "xgboost": 3, "fastapi": 2, "docker": 1,
-    "security": 2, "malware": 4, "threat": 2, "research": 2, "software engineer": 2, "backend": 1, "sde": 2,
+    "security": 2, "malware": 4, "threat": 2, "research": 2, "software engineer": 5, "backend": 3, "sde": 4,
+    "ai engineer": 6, "ml engineer": 6, "machine learning engineer": 6, "applied ": 3, "full stack": 2, "software developer": 4,
 }
-NEGATIVE = {  # term -> penalty; matched in title only
-    "senior": 20, "sr.": 20, "staff": 20, "principal": 25, "lead": 20, "manager": 15, "director": 25,
-    "head of": 25, "vp": 25, "architect": 15, " ii": 8, " iii": 15, " iv": 20,
+NEGATIVE = {  # term -> penalty; matched in title only. Seniority and non-engineering titles are big enough to drop a job.
+    "senior": 60, "sr.": 60, " sr ": 60, "staff": 60, "principal": 60, "lead": 40, "manager": 40, "director": 60,
+    "head of": 60, "vp": 60, "architect": 40, " ii": 40, " iii": 60, " iv": 60,
+    "sde2": 40, "sde 2": 40, "sde-2": 40, "sde3": 60, "sde 3": 60, "sde-3": 60,
+    "product manage": 40, "user research": 40, "program": 25, "designer": 30,
+    "payroll": 30, "procurement": 30, "consultant": 20, "administrator": 30, "operations": 20, " sap ": 25,
     "sales": 25, "account executive": 25, "marketing": 20, "brand": 15, "recruit": 25, "talent": 25,
     "legal": 25, "finance": 20, "accountant": 25, "hr ": 25, "collections": 25, "customer success": 20,
     "gtm": 20, "strategy": 10,
@@ -36,7 +40,7 @@ def score(job):
         if term in title:
             s -= w
     yrs = [int(y) for y in YEARS.findall(desc)]
-    if yrs and min(yrs) >= 4:  # "4+ years" and up: not a student role
+    if yrs and min(yrs) >= 3:  # "3+ years" and up: not an entry-level role
         s -= 8
     return s
 
