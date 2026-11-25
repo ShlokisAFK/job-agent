@@ -145,6 +145,49 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(self.calls, 1)
 
 
+class ZeroPickRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self.tmp.name)
+        (self.ws / "inbox").mkdir()
+        (self.ws / "inbox" / "backlog.jsonl").write_text(
+            "".join(json.dumps(job(k)) + "\n" for k in "abcdefgh"))
+        resume = self.ws / "resume.md"
+        resume.write_text("resume")
+        self.cfg = {"demo": True, "master_resume": str(resume), "max_wakes_per_day": 9, "shortlist_size": 1}
+        self.calls = 0
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def no_picks(self, _prompt):
+        self.calls += 1
+        (self.ws / "picks.json").write_text('{"picks": []}')
+        with (self.ws / "chat.md").open("a") as f:
+            f.write("- [claude] all senior roles\n")
+        return 0, "", ""
+
+    def run_at(self, hour, minute=15):
+        return Supervisor(self.cfg, self.ws, now=datetime(2026, 11, 25, hour, minute), runner=self.no_picks).run()
+
+    def test_zero_picks_retries_then_stops_at_hard_cap(self):
+        self.assertEqual(self.run_at(9), "picked 0")
+        self.assertIn("next_wake: 2026-11-25T12:15", (self.ws / "schedule.md").read_text())
+        digest = (self.ws / "digest.md").read_text()
+        self.assertIn("all senior roles", digest)
+        self.assertIn("12:15", digest)
+        self.assertEqual(self.run_at(11), "not due")
+        for h in (12, 15, 18):
+            self.assertEqual(self.run_at(h), "picked 0")
+        self.assertEqual(self.calls, 4)  # config says 9, the hard cap is 4
+        self.assertIn("next_wake: 2026-11-26T09:00", (self.ws / "schedule.md").read_text())
+        self.assertIn("No more tries today", (self.ws / "digest.md").read_text())
+
+    def test_no_retry_late_in_the_day(self):
+        self.run_at(19)
+        self.assertIn("next_wake: 2026-11-26T09:00", (self.ws / "schedule.md").read_text())
+
+
 class EligibilityTests(unittest.TestCase):
     P = {"grad_year": 2028, "cgpa": 7.74}
 

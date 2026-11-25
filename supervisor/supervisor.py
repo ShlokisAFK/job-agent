@@ -26,6 +26,7 @@ from agent import notify, picks, rank, tracker  # noqa: E402
 WS_FILES = {"state.md": "# State\n(no runs yet)\n", "chat.md": "# Chat\n", "schedule.md": "",
             "my_updates.md": "# Write one line per job: <id> <sent|skip|applied|replied|interview|rejected|offer> [- note]\n",
             "pi_inbox.md": ""}
+HARD_WAKE_CAP = 4  # never more than 4 Claude wakes a day, whatever config.json says
 
 
 class Supervisor:
@@ -72,6 +73,20 @@ class Supervisor:
 
     def set_next_wake(self, when):
         (self.ws / "schedule.md").write_text(f"next_wake: {when:%Y-%m-%dT%H:%M}\n", encoding="utf-8")
+
+    def wake_cap(self):
+        return min(self.cfg.get("max_wakes_per_day", 2), HARD_WAKE_CAP)
+
+    def plan_retry(self):
+        """After a run with 0 picks, try again later today on the next unreviewed jobs, within the cap."""
+        if self.wakes_today() >= self.wake_cap():
+            return None
+        when = self.now + timedelta(hours=self.cfg.get("retry_gap_hours", 3))
+        h, m = map(int, self.cfg.get("retry_until", "21:00").split(":"))
+        if when > self.now.replace(hour=h, minute=m, second=0, microsecond=0):
+            return None
+        self.set_next_wake(when)
+        return when
 
     # ---------- Pi sync ----------
     def pull_from_pi(self):
@@ -231,7 +246,7 @@ class Supervisor:
         due = force or urgent or self.now >= self.next_wake()
         if not due:
             return "not due"
-        if self.wakes_today() >= self.cfg.get("max_wakes_per_day", 2):
+        if self.wakes_today() >= self.wake_cap():
             self.log("cap_reached", wakes=self.wakes_today())
             return "cap"
         excluded = {r["key"] for r in tracker.read(self.ws / "tracker.csv")}
@@ -248,6 +263,7 @@ class Supervisor:
         self.prepare_context(jobs, short, notes)
         prompt = (ROOT / "supervisor" / "claude_task.md").read_text(encoding="utf-8")
         self.log("wake", candidates=len(short), urgent=urgent)
+        chat_before = len((self.ws / "chat.md").read_text(encoding="utf-8").splitlines())
         try:
             rc, out, err = self.runner(prompt)
             self.log("claude_done", rc=rc, out=out[-500:], err=err[-300:])
@@ -258,13 +274,26 @@ class Supervisor:
         if self.next_wake() <= self.now:  # Claude did not schedule itself: default to tomorrow
             self.set_next_wake((self.now + timedelta(days=1)).replace(hour=int(self.cfg.get("daily_time", "09:00")[:2]), minute=0))
         new_rows = self.process_picks(jobs)
-        body = picks.digest(new_rows, self.today)
+        if new_rows:
+            title = f"job-agent: {len(new_rows)} picks"
+            body = picks.digest(new_rows, self.today)
+            self.chat(f"picked {len(new_rows)} jobs; digest written")
+        else:
+            retry = self.plan_retry()
+            said = [l[len("- [claude] "):] for l in
+                    (self.ws / "chat.md").read_text(encoding="utf-8").splitlines()[chat_before:]
+                    if l.startswith("- [claude] ")]
+            nxt = (f"Trying the next unreviewed jobs at {retry:%H:%M} (wake {self.wakes_today()} of {self.wake_cap()} today)."
+                   if retry else f"No more tries today; next run {self.next_wake():%Y-%m-%d %H:%M}.")
+            title = "job-agent: 0 picks"
+            body = "\n".join([f"0 picks from {len(short)} jobs on {self.today}.", nxt, "",
+                              "Claude said:", *(f"- {s}" for s in said or ["(no notes)"])])
+            self.chat(f"picked 0 jobs; {nxt}")
         (self.ws / "digest.md").write_text(body, encoding="utf-8")
-        self.chat(f"picked {len(new_rows)} jobs; digest written")
         topic = self.cfg.get("ntfy_topic")
-        if topic and new_rows and not self.cfg.get("demo"):
+        if topic and not self.cfg.get("demo"):
             try:
-                notify.send(topic, f"job-agent: {len(new_rows)} picks", body)
+                notify.send(topic, title, body)
                 self.log("notified", n=len(new_rows))
             except Exception as e:
                 self.log("notify_failed", err=str(e)[:200])

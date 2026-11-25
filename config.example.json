@@ -6,7 +6,9 @@
   "pi_data_dir": "/home/shlok/job-agent/data",
   "ntfy_topic": "PUT-A-LONG-RANDOM-TOPIC-HERE",
   "daily_time": "09:00",
-  "max_wakes_per_day": 2,
+  "max_wakes_per_day": 4,
+  "retry_gap_hours": 3,
+  "retry_until": "21:00",
   "shortlist_size": 20,
   "claude_timeout_s": 600,
   "profile": {

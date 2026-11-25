@@ -56,7 +56,7 @@ flowchart LR
 ## Safety rails
 - `workspace/STOP`: if this file exists, nothing runs.
 - Claude runs with `Read`, `Write`, `Edit` only: no shell, no web, no subagents, inside the workspace folder.
-- Hard timeout (10 min) and a daily wake cap (`max_wakes_per_day`).
+- Hard timeout (10 min) and a daily wake cap (`max_wakes_per_day`, never more than 4). A run with 0 picks still sends a phone message with the reasons and retries on the next unreviewed jobs 3 hours later (`retry_gap_hours`, not after `retry_until`).
 - Everything is logged to `workspace/log.jsonl`.
 - Claude is told to use only facts marked *Verified* in my resume audit.
 
