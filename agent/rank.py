@@ -40,8 +40,13 @@ def score(job):
         if term in title:
             s -= w
     yrs = [int(y) for y in YEARS.findall(desc)]
-    if yrs and min(yrs) >= 3:  # "3+ years" and up: not an entry-level role
-        s -= 8
+    if yrs:  # experience asked for: 3+ years is not an entry-level role, so it drops out
+        if min(yrs) >= 3:
+            s -= 40
+        elif max(yrs) >= 5:
+            s -= 25
+        elif min(yrs) >= 2:
+            s -= 12
     return s
 
 
