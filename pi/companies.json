@@ -1,12 +1,258 @@
 {
-  "location_words": ["india", "bengaluru", "bangalore", "mumbai", "pune", "delhi", "gurgaon", "gurugram",
-                     "hyderabad", "noida", "chennai", "remote"],
+  "location_words": [
+    "india",
+    "bengaluru",
+    "bangalore",
+    "mumbai",
+    "pune",
+    "delhi",
+    "gurgaon",
+    "gurugram",
+    "hyderabad",
+    "noida",
+    "chennai",
+    "remote"
+  ],
   "companies": [
-    {"name": "Sarvam AI", "source": "ashby", "slug": "sarvam"},
-    {"name": "Databricks", "source": "greenhouse", "slug": "databricks"},
-    {"name": "Rubrik", "source": "greenhouse", "slug": "rubrik"},
-    {"name": "InMobi", "source": "greenhouse", "slug": "inmobi"},
-    {"name": "Atlan", "source": "ashby", "slug": "atlan"},
-    {"name": "Druva", "source": "greenhouse", "slug": "druva"}
+    {
+      "name": "Sarvam AI",
+      "source": "ashby",
+      "slug": "sarvam"
+    },
+    {
+      "name": "Databricks",
+      "source": "greenhouse",
+      "slug": "databricks"
+    },
+    {
+      "name": "Rubrik",
+      "source": "greenhouse",
+      "slug": "rubrik"
+    },
+    {
+      "name": "InMobi",
+      "source": "greenhouse",
+      "slug": "inmobi"
+    },
+    {
+      "name": "Atlan",
+      "source": "ashby",
+      "slug": "atlan"
+    },
+    {
+      "name": "Druva",
+      "source": "greenhouse",
+      "slug": "druva"
+    },
+    {
+      "name": "CRED",
+      "source": "lever",
+      "slug": "cred"
+    },
+    {
+      "name": "Meesho",
+      "source": "lever",
+      "slug": "meesho"
+    },
+    {
+      "name": "Groww",
+      "source": "greenhouse",
+      "slug": "groww"
+    },
+    {
+      "name": "Observe.AI",
+      "source": "greenhouse",
+      "slug": "observeai"
+    },
+    {
+      "name": "NVIDIA",
+      "source": "workday",
+      "slug": "nvidia/wd5/NVIDIAExternalCareerSite"
+    },
+    {
+      "name": "Adobe",
+      "source": "workday",
+      "slug": "adobe/wd5/external_experienced"
+    },
+    {
+      "name": "Salesforce",
+      "source": "workday",
+      "slug": "salesforce/wd12/External_Career_Site"
+    },
+    {
+      "name": "Workday",
+      "source": "workday",
+      "slug": "workday/wd5/Workday"
+    },
+    {
+      "name": "Analog Devices",
+      "source": "workday",
+      "slug": "analogdevices/wd1/external"
+    },
+    {
+      "name": "Wells Fargo",
+      "source": "workday",
+      "slug": "wf/wd1/WellsFargoJobs"
+    },
+    {
+      "name": "Cadence",
+      "source": "workday",
+      "slug": "cadence/wd1/External_Careers"
+    },
+    {
+      "name": "KLA",
+      "source": "workday",
+      "slug": "kla/wd1/Search"
+    },
+    {
+      "name": "Bosch",
+      "source": "smartrecruiters",
+      "slug": "BoschGroup"
+    },
+    {
+      "name": "ServiceNow",
+      "source": "smartrecruiters",
+      "slug": "ServiceNow"
+    },
+    {
+      "name": "Experian",
+      "source": "smartrecruiters",
+      "slug": "Experian"
+    },
+    {
+      "name": "Freshworks",
+      "source": "smartrecruiters",
+      "slug": "Freshworks"
+    },
+    {
+      "name": "NielsenIQ",
+      "source": "smartrecruiters",
+      "slug": "NielsenIQ"
+    },
+    {
+      "name": "Ubisoft",
+      "source": "smartrecruiters",
+      "slug": "Ubisoft2"
+    },
+    {
+      "name": "Datadog",
+      "source": "greenhouse",
+      "slug": "datadog"
+    },
+    {
+      "name": "MongoDB",
+      "source": "greenhouse",
+      "slug": "mongodb"
+    },
+    {
+      "name": "Elastic",
+      "source": "greenhouse",
+      "slug": "elastic"
+    },
+    {
+      "name": "Okta",
+      "source": "greenhouse",
+      "slug": "okta"
+    },
+    {
+      "name": "Twilio",
+      "source": "greenhouse",
+      "slug": "twilio"
+    },
+    {
+      "name": "Stripe",
+      "source": "greenhouse",
+      "slug": "stripe"
+    },
+    {
+      "name": "Coinbase",
+      "source": "greenhouse",
+      "slug": "coinbase"
+    },
+    {
+      "name": "Airbnb",
+      "source": "greenhouse",
+      "slug": "airbnb"
+    },
+    {
+      "name": "GitLab",
+      "source": "greenhouse",
+      "slug": "gitlab"
+    },
+    {
+      "name": "Zscaler",
+      "source": "greenhouse",
+      "slug": "zscaler"
+    },
+    {
+      "name": "Netskope",
+      "source": "greenhouse",
+      "slug": "netskope"
+    },
+    {
+      "name": "Pure Storage",
+      "source": "greenhouse",
+      "slug": "purestorage"
+    },
+    {
+      "name": "Samsara",
+      "source": "greenhouse",
+      "slug": "samsara"
+    },
+    {
+      "name": "Roblox",
+      "source": "greenhouse",
+      "slug": "roblox"
+    },
+    {
+      "name": "Zeta",
+      "source": "lever",
+      "slug": "zeta"
+    },
+    {
+      "name": "Glance",
+      "source": "greenhouse",
+      "slug": "glance"
+    },
+    {
+      "name": "Mindtickle",
+      "source": "lever",
+      "slug": "mindtickle"
+    },
+    {
+      "name": "Zenoti",
+      "source": "greenhouse",
+      "slug": "zenoti"
+    },
+    {
+      "name": "Sigmoid",
+      "source": "greenhouse",
+      "slug": "sigmoid"
+    },
+    {
+      "name": "Paytm",
+      "source": "lever",
+      "slug": "paytm"
+    },
+    {
+      "name": "Anyscale",
+      "source": "ashby",
+      "slug": "anyscale"
+    },
+    {
+      "name": "Sumo Logic",
+      "source": "greenhouse",
+      "slug": "sumologic"
+    },
+    {
+      "name": "New Relic",
+      "source": "greenhouse",
+      "slug": "newrelic"
+    },
+    {
+      "name": "Mixpanel",
+      "source": "greenhouse",
+      "slug": "mixpanel"
+    }
   ]
 }

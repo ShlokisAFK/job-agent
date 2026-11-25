@@ -51,6 +51,93 @@ class FetchTests(unittest.TestCase):
             self.assertIn("@claude", (Path(d) / "pi_outbox.md").read_text())
 
 
+class LargeBoardTests(unittest.TestCase):
+    WORDS = ["india", "bengaluru", "pune", "remote"]
+
+    def test_workday_facet_found_in_nested_tree(self):
+        tree = [{"facetParameter": "locationMainGroup", "values": [
+            {"facetParameter": "locationHierarchy1", "descriptor": "Locations", "values": [
+                {"descriptor": "Armenia", "id": "a"}, {"descriptor": "India", "id": "ind"}]}]}]
+        self.assertEqual(fetch_jobs._find_facet(tree, "India"), ("locationHierarchy1", "ind"))
+        self.assertIsNone(fetch_jobs._find_facet(tree, "Narnia"))
+
+    def test_workday_search_uses_india_filter_and_skips_senior_and_non_tech(self):
+        calls = []
+
+        def post(url, payload):
+            calls.append(payload["appliedFacets"])
+            facets = [{"facetParameter": "locationHierarchy1", "values": [{"descriptor": "India", "id": "ind"}]}]
+            posts = [{"title": "ML Intern", "externalPath": "/job/India-Pune/ML-Intern_JR1", "locationsText": "2 Locations",
+                      "bulletFields": ["JR1"], "postedOn": "Posted Today"},
+                     {"title": "Senior ML Engineer", "externalPath": "/job/India-Pune/Sr_JR2", "locationsText": "India, Pune", "bulletFields": ["JR2"]},
+                     {"title": "Facilities Coordinator", "externalPath": "/job/India-Pune/Fac_JR3", "locationsText": "India, Pune", "bulletFields": ["JR3"]}]
+            return {"total": 3, "jobPostings": posts, "facets": facets}
+
+        jobs = fetch_jobs.workday_jobs("acme/wd5/Site", post=post, pause=lambda s: None, queries=("intern",))
+        self.assertEqual([j["title"] for j in jobs], ["ML Intern"])
+        self.assertEqual(jobs[0]["key"], "wd:acme:JR1")
+        self.assertEqual(jobs[0]["location"], "India, Pune")  # not the useless "2 Locations"
+        self.assertEqual(jobs[0]["detail_kind"], "workday")
+        self.assertEqual(calls[-1], {"locationHierarchy1": ["ind"]})  # every real query is limited to India
+
+    def test_smartrecruiters_drops_senior_levels(self):
+        def getter(url):
+            self.assertIn("country=in", url)
+            return {"totalFound": 3, "content": [
+                {"id": "1", "name": "Software Engineer", "location": {"city": "Pune"}, "experienceLevel": {"id": "entry_level"}, "releasedDate": "2026-11-01"},
+                {"id": "2", "name": "Software Engineer", "location": {"city": "Pune"}, "experienceLevel": {"id": "director"}},
+                {"id": "3", "name": "Plant Controller", "location": {"city": "Pune"}, "experienceLevel": {"id": "entry_level"}}]}
+
+        jobs = fetch_jobs.smartrecruiters_jobs("Acme", getter=getter, pause=lambda s: None)
+        self.assertEqual([j["key"] for j in jobs], ["sr:Acme:1"])
+        self.assertEqual(jobs[0]["level"], "entry_level")
+
+    def test_hydrate_fills_description_and_removes_helper_fields(self):
+        job = {"description": "", "detail_url": "u", "detail_kind": "smartrecruiters"}
+        out = fetch_jobs.hydrate(job, getter=lambda u: {"jobAd": {"sections": {"jobDescription": {"text": "<p>Build ML</p>"}}}})
+        self.assertEqual(out["description"], "Build ML")
+        self.assertNotIn("detail_url", out)
+
+    def test_run_respects_caps_and_retries_after_rate_limit(self):
+        import urllib.error
+        cfg = {"location_words": self.WORDS, "detail_caps": {"workday": 2}, "companies": [{"name": "A", "source": "workday", "slug": "x"}]}
+        jobs = lambda: [{"key": f"wd:a:{i}", "company": "a", "title": "Engineer", "location": "India, Pune", "url": "u", "posted": "",
+                         "updated": "", "description": "", "detail_url": "u", "detail_kind": "workday"} for i in range(4)]
+        attempts = {"n": 0}
+
+        def hydrator(job):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise urllib.error.HTTPError("u", 429, "slow down", {}, None)
+            job["description"] = "ok"
+            job.pop("detail_url"); job.pop("detail_kind")
+            return job
+
+        with tempfile.TemporaryDirectory() as d:
+            new, errors = fetch_jobs.run(cfg, Path(d), fetcher=lambda s, c: jobs(), hydrator=hydrator, pause=lambda s: None)
+            self.assertEqual(len(new), 2)  # cap of 2; the other two wait for the next run
+            self.assertEqual(errors, [])
+            self.assertTrue(all("detail_url" not in j for j in new))
+            again, _ = fetch_jobs.run(cfg, Path(d), fetcher=lambda s, c: jobs(), hydrator=hydrator, pause=lambda s: None)
+            self.assertEqual(len(again), 2)  # next run picks up the rest, nothing twice
+
+    def test_persistent_rate_limit_is_reported_calmly_not_as_an_alert(self):
+        import urllib.error
+        cfg = {"location_words": self.WORDS, "companies": [{"name": "A", "source": "workday", "slug": "x"}]}
+        job = [{"key": "wd:a:1", "company": "a", "title": "Engineer", "location": "India, Pune", "url": "u", "posted": "",
+                "updated": "", "description": "", "detail_url": "u", "detail_kind": "workday"}]
+
+        def always_429(j):
+            raise urllib.error.HTTPError("u", 429, "slow down", {}, None)
+
+        with tempfile.TemporaryDirectory() as d:
+            new, errors = fetch_jobs.run(cfg, Path(d), fetcher=lambda s, c: [dict(j) for j in job], hydrator=always_429, pause=lambda s: None)
+            self.assertEqual((new, errors), ([], []))
+            note = (Path(d) / "pi_outbox.md").read_text()
+            self.assertIn("rate limited", note)
+            self.assertNotIn("@claude", note)  # must not wake Claude
+
+
 class RankTests(unittest.TestCase):
     def test_students_above_seniors_and_negatives_dropped(self):
         jobs = [job("a", "Senior Staff ML Engineer"), job("b", "Machine Learning Intern"),
