@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "pi"))
+import digger  # noqa: E402
 import fetch_jobs  # noqa: E402
 import pi_agent  # noqa: E402
 from agent import eligibility, picks, rank, tracker  # noqa: E402
@@ -136,6 +137,87 @@ class LargeBoardTests(unittest.TestCase):
             note = (Path(d) / "pi_outbox.md").read_text()
             self.assertIn("rate limited", note)
             self.assertNotIn("@claude", note)  # must not wake Claude
+
+
+class DiggerTests(unittest.TestCase):
+    def test_bing_links_are_decoded_and_search_results_parsed(self):
+        import base64
+        enc = "a1" + base64.urlsafe_b64encode(b"https://www.razorpay.com/careers/").decode().rstrip("=")
+        page = ('<li class="b_algo"><h2><a href="https://www.bing.com/ck/a?!&amp;&amp;p=x&amp;u=' + enc + '&amp;ntb=1">Razorpay Careers</a></h2>'
+                '<div class="b_caption"><p>Join us. Open roles in Bengaluru.</p></div></li>')
+        res = digger.bing_search("razorpay careers", fetch=lambda url: (url, page))
+        self.assertEqual(res, [{"url": "https://www.razorpay.com/careers/", "title": "Razorpay Careers",
+                                "snippet": "Join us. Open roles in Bengaluru."}])
+
+    def test_only_public_web_addresses_are_allowed(self):
+        for bad in ("http://127.0.0.1:8080/v1/models", "http://192.168.1.5/admin", "http://localhost/", "file:///etc/passwd", "ftp://example.com/x"):
+            self.assertFalse(digger.public_url(bad), bad)
+
+    def test_detects_supported_boards_and_ignores_embed_scaffolding(self):
+        page = ('<a href="https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited">Jobs</a>'
+                '<script src="https://boards.greenhouse.io/embed/job_board/js?for=acme"></script>'
+                '<a href="https://jobs.lever.co/zeta/abc-123">x</a>'
+                '<a href="https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite/job/x">y</a>'
+                '<a href="https://jobs.smartrecruiters.com/BoschGroup/123">z</a>')
+        self.assertEqual(digger.detect_boards(page), [
+            ("greenhouse", "razorpaysoftwareprivatelimited"), ("greenhouse", "acme"), ("lever", "zeta"),
+            ("smartrecruiters", "BoschGroup"), ("workday", "nvidia/wd5/NVIDIAExternalCareerSite")])
+
+    def test_model_company_names_are_checked_against_the_text(self):
+        results = [{"title": "Razorpay hiring ML interns in Bengaluru", "snippet": "Also Swiggy and Naukri list jobs"}]
+        ask = lambda s, u, max_tokens=0: {"companies": ["Razorpay", "Swiggy", "Naukri", "Madeup Corp", "x"]}
+        self.assertEqual(digger.model_company_names(ask, results), ["Razorpay", "Swiggy"])  # invented / aggregator / too short dropped
+
+    def test_model_link_pick_ignores_bad_indexes(self):
+        links = [("https://a.com/x", "Blog"), ("https://a.com/jobs", "Openings")]
+        self.assertEqual(digger.model_pick_links(lambda s, u, max_tokens=0: {"pick": [2, 9, "x", 2]}, "A", links), [links[1]])
+
+    def _setup(self, tmp):
+        d = Path(tmp)
+        cfg = d / "companies.json"
+        cfg.write_text(json.dumps({"location_words": ["india"], "companies": [{"name": "Old", "source": "lever", "slug": "old"}]}))
+        return d, cfg
+
+    def _fakes(self, page_for):
+        search = lambda q: [{"url": "https://www.razorpay.com/careers", "title": "Careers", "snippet": ""}]
+        fetch = lambda url: (url, page_for(url))
+        ask = lambda s, u, max_tokens=0: {"pick": []}
+        return search, fetch, ask
+
+    def test_run_adds_a_verified_board_and_remembers_the_company(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d, cfg = self._setup(tmp)
+            search, fetch, ask = self._fakes(lambda u: '<a href="https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited">j</a>')
+            verify = lambda source, slug: {"total": 40, "india": 25}
+            added, notes = digger.run(d, cfg, [], only=["Razorpay"], search=search, fetch=fetch, ask=ask, verify=verify, pause=lambda s: None)
+            self.assertEqual(added, ["Razorpay: added (greenhouse/razorpaysoftwareprivatelimited, 40 jobs, 25 in India)"])
+            self.assertIn({"name": "Razorpay", "source": "greenhouse", "slug": "razorpaysoftwareprivatelimited"}, json.loads(cfg.read_text())["companies"])
+            self.assertIn("digger: Razorpay: added", (d / "pi_outbox.md").read_text())
+            self.assertNotIn("@claude", (d / "pi_outbox.md").read_text())
+            added2, _ = digger.run(d, cfg, ["Razorpay"], search=search, fetch=fetch, ask=ask, verify=verify, pause=lambda s: None)
+            self.assertEqual(added2, [])  # already watched, not checked again
+
+    def test_run_rejects_boards_without_india_jobs_and_reports_missing_boards(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d, cfg = self._setup(tmp)
+            search, fetch, ask = self._fakes(lambda u: '<a href="https://jobs.lever.co/razorpay">j</a>')
+            added, notes = digger.run(d, cfg, [], only=["Razorpay"], search=search, fetch=fetch, ask=ask,
+                                      verify=lambda s, sl: {"total": 12, "india": 0}, pause=lambda s: None)
+            self.assertEqual(added, [])
+            self.assertEqual(len(json.loads(cfg.read_text())["companies"]), 1)  # nothing added
+            search, fetch, ask = self._fakes(lambda u: "<html>our own custom careers app</html>")
+            _, notes = digger.run(d, cfg, [], only=["Razorpay"], search=search, fetch=fetch, ask=ask, verify=None, pause=lambda s: None)
+            self.assertTrue(any("needs a custom scraper" in n for n in notes))
+
+    def test_daily_search_budget_stops_cleanly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d, cfg = self._setup(tmp)
+            (d / "digger_state.json").write_text(json.dumps({"companies": {}, "searches": {"date": "2026-11-25", "n": 40}}))
+            search, fetch, ask = self._fakes(lambda u: "")
+            added, notes = digger.run(d, cfg, [], only=["Razorpay"], now=datetime(2026, 11, 25, 3, 0, tzinfo=__import__("datetime").timezone.utc),
+                                      search=search, fetch=fetch, ask=ask, verify=None, pause=lambda s: None)
+            self.assertEqual(added, [])
+            self.assertTrue(any("budget" in n for n in notes))
 
 
 class RankTests(unittest.TestCase):

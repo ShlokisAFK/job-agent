@@ -1,0 +1,48 @@
+# Companies the digger checks first (one per line). It looks at each company's own careers page for a
+# supported job board (Greenhouse, Lever, Ashby, Workday, SmartRecruiters) and adds it only if it has India jobs.
+Razorpay
+Swiggy
+Zomato
+PhonePe
+Postman
+Zepto
+Dream11
+Flipkart
+Myntra
+Ola
+Cashfree
+Juspay
+Urban Company
+ShareChat
+Yellow.ai
+Uniphore
+Gupshup
+Darwinbox
+Whatfix
+CleverTap
+MoEngage
+Vymo
+Kissflow
+Setu
+PhysicsWallah
+upGrad
+Scaler
+Qure.ai
+Fractal
+Tredence
+BrowserStack
+Delhivery
+Lenskart
+Nykaa
+ThoughtSpot
+Atlassian
+Hasura
+Sprinklr
+Chargebee
+Cohesity
+Arista
+Qualcomm
+AMD
+Dell
+Texas Instruments
+Intuit
