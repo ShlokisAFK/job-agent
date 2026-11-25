@@ -11,6 +11,7 @@
   "retry_until": "21:00",
   "shortlist_size": 20,
   "claude_timeout_s": 600,
+  "claude_model": "sonnet",
   "profile": {
     "grad_year": 2028,
     "cgpa": 7.0

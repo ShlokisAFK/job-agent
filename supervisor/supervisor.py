@@ -151,7 +151,7 @@ class Supervisor:
         exe = shutil.which("claude")
         if not exe:
             raise RuntimeError("claude CLI not found on PATH")
-        cmd = [exe, "-p", prompt, "--permission-mode", "acceptEdits",
+        cmd = [exe, "-p", prompt, "--model", self.cfg.get("claude_model", "sonnet"), "--permission-mode", "acceptEdits",
                "--allowedTools", "Read", "Write", "Edit",
                "--disallowedTools", "Bash", "PowerShell", "WebFetch", "WebSearch", "Agent"]
         r = subprocess.run(cmd, cwd=self.ws, capture_output=True, text=True, encoding="utf-8",
