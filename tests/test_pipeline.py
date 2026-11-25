@@ -232,6 +232,34 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(self.calls, 1)
 
 
+class PiSyncFailureTests(unittest.TestCase):
+    def test_slow_pi_connection_does_not_stop_the_run(self):
+        import subprocess
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            (ws / "inbox").mkdir()
+            (ws / "inbox" / "backlog.jsonl").write_text(json.dumps(job("a")) + "\n")
+            resume = ws / "resume.md"
+            resume.write_text("resume")
+            cfg = {"master_resume": str(resume), "pi_host": "pi", "pi_data_dir": "/x", "max_wakes_per_day": 2}
+            calls = []
+
+            def claude(_p):
+                calls.append(1)
+                (ws / "picks.json").write_text('{"picks": []}')
+                return 0, "", ""
+
+            def slow_scp(*a, **k):
+                raise subprocess.TimeoutExpired(a[0], 60)
+
+            with mock.patch("supervisor.supervisor.subprocess.run", side_effect=slow_scp):
+                sup = Supervisor(cfg, ws, now=datetime(2026, 11, 25, 10, 0), runner=claude)
+                self.assertEqual(sup.run(), "picked 0")  # kept going on the data it already had
+            self.assertEqual(len(calls), 1)
+            self.assertIn("pi_sync_failed", (ws / "log.jsonl").read_text())
+
+
 class ZeroPickRetryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -289,6 +317,14 @@ class EligibilityTests(unittest.TestCase):
         for t in ("2027/28 graduates welcome", "graduating in 2028", "7.5+ CGPA", "no rules at all",
                   "class of 2027 or 2028"):
             self.assertEqual(self.check(t), "", t)
+
+    def test_degree_deadline_rules_out_earlier_batches_only(self):
+        stripe = "A Bachelor's or Master's degree in computer science or a directly related field, obtained by summer 2027, or equivalent work experience"
+        self.assertIn("2027", self.check(stripe))
+        self.assertIn("2027", self.check("You must graduate by 2027."))
+        for ok in ("degree obtained by summer 2029", "You must graduate by end of 2028", "Please apply by 2027 to be considered",
+                   "Complete the online assessment by 2027-01-15"):
+            self.assertEqual(self.check(ok), "", ok)
 
     def test_shortlist_drops_ineligible(self):
         jobs = [job("a", desc="python CGPA 8 and above, 2027 graduates"), job("b")]

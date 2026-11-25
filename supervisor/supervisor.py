@@ -89,24 +89,30 @@ class Supervisor:
         return when
 
     # ---------- Pi sync ----------
+    def _scp(self, src, dst, what):
+        """One scp. A slow or failed connection is logged and skipped; it must never stop the whole run."""
+        try:
+            r = subprocess.run(["scp", "-q", src, dst], capture_output=True, text=True, timeout=60)
+        except (subprocess.TimeoutExpired, OSError) as e:
+            self.log("pi_sync_failed", file=what, err=f"{type(e).__name__}: {e}"[:200])
+            return False
+        if r.returncode:
+            self.log("pi_sync_failed", file=what, err=r.stderr.strip()[:200])
+            return False
+        return True
+
     def pull_from_pi(self):
         host, remote = self.cfg.get("pi_host"), self.cfg.get("pi_data_dir")
         if not host:
             return
         for name in ("backlog.jsonl", "pi_outbox.md"):
-            r = subprocess.run(["scp", "-q", f"{host}:{remote}/{name}", str(self.ws / "inbox" / name)],
-                               capture_output=True, text=True, timeout=60)
-            if r.returncode:
-                self.log("pi_pull_failed", file=name, err=r.stderr.strip()[:200])
+            self._scp(f"{host}:{remote}/{name}", str(self.ws / "inbox" / name), name)
 
     def push_to_pi(self):
         host, remote = self.cfg.get("pi_host"), self.cfg.get("pi_data_dir")
         src = self.ws / "pi_inbox.md"
         if host and src.stat().st_size:
-            r = subprocess.run(["scp", "-q", str(src), f"{host}:{remote}/pi_inbox.md"],
-                               capture_output=True, text=True, timeout=60)
-            if r.returncode:
-                self.log("pi_push_failed", err=r.stderr.strip()[:200])
+            self._scp(str(src), f"{host}:{remote}/pi_inbox.md", "pi_inbox.md")
 
     def backlog(self):
         p = self.ws / "inbox" / "backlog.jsonl"

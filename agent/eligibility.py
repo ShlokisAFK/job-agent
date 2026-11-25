@@ -12,6 +12,11 @@ CGPA_AFTER = re.compile(r"\b(?:cgpa|gpa)\s*(?:of|:|-|>=|≥|>)?\s*(?:of\s*)?(\d{
 CGPA_BEFORE = re.compile(r"\b(\d{1,2}(?:\.\d+)?)\s*\+?\s*(?:cgpa|gpa)\b", re.I)
 
 
+# "degree ... obtained by summer 2027", "must graduate by 2027": a deadline, so any grad year after it is out.
+DEADLINE = re.compile(r"(?:obtained|completed|graduat\w*|degree)[^.;]{0,60}?\bby\s+(?:the\s+)?(?:end\s+of\s+)?"
+                      r"(?:(?:early|late|spring|summer|fall|autumn|winter)\s+)?(20\d\d)", re.I)
+
+
 def _years(m):
     first = int(m.group(1))
     ys = {first}
@@ -28,6 +33,9 @@ def check(job, profile):
         for m in rx.finditer(text):
             years |= _years(m)
     gy = profile.get("grad_year")
+    deadlines = [int(m.group(1)) for m in DEADLINE.finditer(text)]
+    if gy and deadlines and min(deadlines) < gy:
+        return f"needs the degree by {min(deadlines)} (you: {gy})"
     if gy and years and gy not in years:
         return f"only for {'/'.join(map(str, sorted(years)))} graduates (you: {gy})"
     cg = profile.get("cgpa")
