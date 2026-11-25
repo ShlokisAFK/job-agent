@@ -19,7 +19,7 @@ NEGATIVE = {  # term -> penalty; matched in title only. Seniority and non-engine
     "head of": 60, "vp": 60, "architect": 40, " ii": 40, " iii": 60, " iv": 60,
     "sde2": 40, "sde 2": 40, "sde-2": 40, "sde3": 60, "sde 3": 60, "sde-3": 60,
     "product manage": 40, "user research": 40, "program": 25, "designer": 30,
-    "payroll": 30, "procurement": 30, "consultant": 20, "administrator": 30, "operations": 20, " sap ": 25,
+    "phd": 60, "postdoc": 60, "payroll": 30, "procurement": 30, "consultant": 20, "administrator": 30, "operations": 20, " sap ": 25,
     "sales": 25, "account executive": 25, "marketing": 20, "brand": 15, "recruit": 25, "talent": 25,
     "legal": 25, "finance": 20, "accountant": 25, "hr ": 25, "collections": 25, "customer success": 20,
     "gtm": 20, "strategy": 10,
