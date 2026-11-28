@@ -17,8 +17,9 @@
   "claude_model": "sonnet",
   "profile": {
     "grad_year": 2028,
-    "cgpa": 7.0
+    "cgpa": 7.0,
+    "internships_only": false
   },
   "profile_md": "D:/Claude/cv/job_profile.md",
-  "chars_per_job": 2000
+  "chars_per_job": 3500
 }

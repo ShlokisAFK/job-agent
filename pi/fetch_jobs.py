@@ -1,7 +1,8 @@
 """Pi collector: fetch public job boards, keep new jobs.
 
-Boards: Greenhouse, Lever, Ashby (small and mid companies), Workday and SmartRecruiters
-(large companies; searched for intern / graduate roles in India on the server side).
+Boards: Greenhouse, Lever, Ashby (small and mid companies), Workday, SmartRecruiters
+and Oracle (large companies; searched for intern / graduate roles in India on the server side), and
+Amazon's own careers search.
 
 Standard library only, so it runs on the Pi with no installs.
 Every field comes straight from the board's API. Nothing is guessed: a missing
@@ -40,7 +41,11 @@ def _post(url, payload):
         return json.load(r)
 
 
-def _plain(text, limit=4000):
+# Eligibility rules often sit near the end of a posting, so keep practically all of it.
+DESC_LIMIT = 15000
+
+
+def _plain(text, limit=DESC_LIMIT):
     text = html.unescape(text or "")
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", text).strip()[:limit]
@@ -48,6 +53,18 @@ def _plain(text, limit=4000):
 
 def _iso_ms(ms):
     return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).isoformat() if ms else ""
+
+
+def _lever_text(raw):
+    """Lever splits a posting into parts; the duties and requirements are in `lists`, not in descriptionPlain."""
+    cats = raw.get("categories") or {}
+    facts = (("Job type", cats.get("commitment")), ("Workplace", raw.get("workplaceType")),
+             ("Department", cats.get("department")), ("Team", cats.get("team")))
+    parts = [f"{label}: {value}." for label, value in facts if value]
+    parts.append(raw.get("descriptionPlain") or raw.get("description", ""))
+    parts += [f"{x.get('text', '').rstrip(':')}: {x.get('content', '')}" for x in raw.get("lists") or []]
+    parts.append(raw.get("additionalPlain") or raw.get("additional", ""))
+    return _plain(" ".join(p for p in parts if p))
 
 
 def normalize(source, company, raw):
@@ -63,14 +80,18 @@ def normalize(source, company, raw):
         return {"key": f"lv:{company}:{raw['id']}", "company": company, "title": raw.get("text", ""),
                 "location": cats.get("location", "") or "", "url": raw.get("hostedUrl", ""),
                 "posted": _iso_ms(raw.get("createdAt")), "updated": "",
-                "description": _plain(raw.get("descriptionPlain") or raw.get("description", ""))}
+                "description": _lever_text(raw)}
     if source == "ashby":
         loc = raw.get("location", "") or ""
         if raw.get("isRemote") and "remote" not in loc.lower():
             loc = f"{loc} (Remote)".strip()
+        kind = raw.get("employmentType")
+        text = _plain(raw.get("descriptionPlain") or raw.get("descriptionHtml", ""))
+        if kind:
+            text = f"Job type: {kind}. {text}"
         return {"key": f"ab:{company}:{raw['id']}", "company": company, "title": raw.get("title", ""),
                 "location": loc, "url": raw.get("jobUrl", ""), "posted": raw.get("publishedAt") or "",
-                "updated": "", "description": _plain(raw.get("descriptionPlain") or raw.get("descriptionHtml", ""))}
+                "updated": "", "description": text}
     raise ValueError(f"unknown source {source}")
 
 
@@ -82,9 +103,31 @@ SKIP_TITLE = re.compile(r"\b(senior|sr\.?|staff|principal|director|manager|head|
 TECH_TITLE = re.compile(r"(engineer|developer|software|data|machine learning|\bml\b|\bai\b|scientist|research|"
                         r"\bsde\b|devops|\bsre\b|cloud|security|backend|front.?end|full.?stack|embedded|firmware|"
                         r"python|java|automation|\btest)", re.I)
+# An internship title often names no technology ("2027 Summer Intern"): keep it unless it is clearly another field.
+INTERN_TITLE = re.compile(r"\bintern(?:ship)?s?\b", re.I)
+OTHER_FIELD = re.compile(r"\b(hr|human resources?|talent|recruit\w*|marketing|sales|finance|financial|account\w*|legal|"
+                         r"content|communications?|operations|supply chain|procurement|mba)\b", re.I)
+
+
+def is_internship(job):
+    """Says so in the title, in the job type the board states, or in the board's own experience level.
+    A mention in the text ("you will mentor interns") does not count."""
+    return bool(INTERN_TITLE.search(job.get("title", "")) or job.get("level") == "internship"
+                or job.get("description", "").lower().startswith("job type: intern"))
+
+
+def worth_reading(title):
+    """Large companies post every kind of job: which titles deserve a description request."""
+    if SKIP_TITLE.search(title):
+        return False
+    if INTERN_TITLE.search(title):
+        return bool(TECH_TITLE.search(title)) or not OTHER_FIELD.search(title)
+    return bool(TECH_TITLE.search(title))
+
+
 # Workday's description endpoint allows about 6 requests a minute, so it is paced; SmartRecruiters is relaxed.
-DETAIL_PAUSE = {"workday": 11.0, "smartrecruiters": 1.5}
-DETAIL_CAPS = {"workday": 30, "smartrecruiters": 60}  # description requests per board type per run
+DETAIL_PAUSE = {"workday": 11.0, "smartrecruiters": 1.5, "oracle": 1.5}
+DETAIL_CAPS = {"workday": 30, "smartrecruiters": 60, "oracle": 60}  # description requests per board type per run
 SR_SKIP_LEVELS = {"mid_senior_level", "director", "executive"}  # SmartRecruiters experienceLevel ids
 
 
@@ -100,34 +143,57 @@ def _find_facet(nodes, wanted, param=None):
     return None
 
 
-def workday_jobs(slug, post=_post, pause=time.sleep, queries=WORKDAY_QUERIES, max_pages=5):
+# Some boards have no country filter, only places: "Bengaluru, Karnataka", "IND19-01-Pune", "Mysuru, India".
+INDIA_PLACE = re.compile(r"\bindia\b|\bIND\d|bengaluru|bangalore|hyderabad|\bpune\b|gurgaon|gurugram|noida|chennai|mumbai", re.I)
+
+
+def _india_places(nodes, param=None, found=None):
+    """{facetParameter: [ids]} for every location value in India."""
+    found = {} if found is None else found
+    for n in nodes or []:
+        p = n.get("facetParameter") or param
+        if p and "location" in p.lower() and n.get("id") and INDIA_PLACE.search(n.get("descriptor") or ""):
+            found.setdefault(p, []).append(n["id"])
+        _india_places(n.get("values"), p, found)
+    return found
+
+
+def workday_jobs(slug, post=_post, pause=time.sleep, queries=WORKDAY_QUERIES, max_pages=10):
     """slug = 'tenant/wdN/site'. Keyword search limited to India; descriptions are filled in later."""
     tenant, wd, site = slug.split("/")
     host = f"https://{tenant}.{wd}.myworkdayjobs.com"
     api = f"{host}/wday/cxs/{tenant}/{site}"
     found, applied = {}, None
     for q in queries:
+        total = 0
         for page in range(max_pages):
             payload = {"appliedFacets": applied or {}, "limit": 20, "offset": page * 20, "searchText": q}
             data = post(f"{api}/jobs", payload)
             pause(1.5)
             if applied is None:
                 hit = _find_facet(data.get("facets"), "India")
-                if not hit:
-                    raise ValueError("board has no India location filter")
-                applied = {hit[0]: [hit[1]]}
+                if hit:
+                    applied = {hit[0]: [hit[1]]}
+                else:
+                    places = _india_places(data.get("facets"))
+                    if not places:
+                        raise ValueError("board has no India location filter")
+                    param = max(places, key=lambda k: len(places[k]))  # one facet only: several would be ANDed
+                    applied = {param: places[param]}
                 data = post(f"{api}/jobs", {**payload, "appliedFacets": applied})
                 pause(1.5)
             for p in data.get("jobPostings", []):
                 path = p.get("externalPath")
                 if path and path not in found:
                     found[path] = p
-            if (page + 1) * 20 >= data.get("total", 0):
+            total = total or data.get("total", 0)  # only the first page reports it; later pages say 0
+            rows = len(data.get("jobPostings", []))
+            if rows < 20 or (page + 1) * 20 >= total:
                 break
     jobs = []
     for path, p in found.items():
         title = p.get("title", "")
-        if SKIP_TITLE.search(title) or not TECH_TITLE.search(title):
+        if not worth_reading(title):
             continue
         req_id = (p.get("bulletFields") or [path.rsplit("_", 1)[-1]])[0]
         loc = p.get("locationsText", "") or ""
@@ -151,7 +217,7 @@ def smartrecruiters_jobs(slug, getter=_get, pause=time.sleep, max_offset=500):
         for p in d.get("content", []):
             level = (p.get("experienceLevel") or {}).get("id", "")
             name = p.get("name", "")
-            if level in SR_SKIP_LEVELS or SKIP_TITLE.search(name) or not TECH_TITLE.search(name):
+            if level in SR_SKIP_LEVELS or not worth_reading(name):
                 continue
             loc = p.get("location") or {}
             jobs.append({"key": f"sr:{slug}:{p['id']}", "company": slug, "title": p.get("name", ""),
@@ -166,6 +232,87 @@ def smartrecruiters_jobs(slug, getter=_get, pause=time.sleep, max_offset=500):
     return jobs
 
 
+# ---------- Oracle Recruiting career sites ----------
+def oracle_jobs(slug, getter=_get, pause=time.sleep, max_pages=6):
+    """slug = 'host/site', e.g. 'abc.fa.us2.oraclecloud.com/CX_1'. The public endpoint the career page itself calls."""
+    host, site = slug.split("/")
+    company = host.split(".")[0]
+    api = f"https://{host}/hcmRestApi/resources/latest"
+    jobs, offset = [], 0
+    for _page in range(max_pages):
+        d = getter(f"{api}/recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations"
+                   f"&finder=findReqs;siteNumber={site},keyword=intern,location=India,limit=25,offset={offset},"
+                   f"sortBy=POSTING_DATES_DESC")
+        pause(0.5)
+        result = (d.get("items") or [{}])[0]
+        rows = result.get("requisitionList") or []
+        for r in rows:
+            if r.get("PrimaryLocationCountry") == "IN":
+                loc = r.get("PrimaryLocation", "")
+            else:  # based elsewhere but also open in India
+                loc = next((x.get("Name", "") for x in r.get("secondaryLocations") or []
+                            if x.get("CountryCode") == "IN"), None)
+            if loc is None or not worth_reading(r.get("Title", "")):
+                continue
+            jobs.append({"key": f"or:{company}:{r['Id']}", "company": company, "title": r.get("Title", ""),
+                         "location": loc, "url": f"https://{host}/hcmUI/CandidateExperience/en/sites/{site}/job/{r['Id']}",
+                         "posted": r.get("PostedDate") or "", "updated": "", "description": "",
+                         "detail_url": f"{api}/recruitingCEJobRequisitionDetails?expand=all&onlyData=true"
+                                       f"&finder=ById;Id=%22{r['Id']}%22,siteNumber={site}",
+                         "detail_kind": "oracle"})
+        offset += 25
+        if not rows or offset >= result.get("TotalJobsCount", 0):
+            break
+    return jobs
+
+
+def _oracle_text(d):
+    item = (d.get("items") or [{}])[0]
+    parts = [f"{label}: {item[key]}." for label, key in (("Schedule", "JobSchedule"), ("Workplace", "WorkplaceType"))
+             if item.get(key)]
+    long = [item.get(k) or "" for k in ("ExternalDescriptionStr", "ExternalResponsibilitiesStr",
+                                        "ExternalQualificationsStr")]
+    parts += long if any(long) else [item.get("ShortDescriptionStr") or ""]  # some sites fill only the short one
+    return _plain(" ".join(p for p in parts if p))
+
+
+# ---------- Amazon's own careers search ----------
+def _amazon_date(text):
+    try:
+        return datetime.strptime(" ".join((text or "").split()), "%B %d, %Y").date().isoformat()
+    except ValueError:
+        return ""
+
+
+def amazon_jobs(country="IND", getter=_get, pause=time.sleep, max_pages=3):
+    """Amazon's public job search, internships in one country. The results already carry the full text."""
+    jobs, offset = [], 0
+    for _page in range(max_pages):
+        d = getter("https://www.amazon.jobs/en/search.json?base_query=intern&sort=recent&result_limit=100"
+                   f"&normalized_country_code%5B%5D={country}&offset={offset}")
+        pause(1.0)
+        rows = d.get("jobs") or []
+        for r in rows:
+            title = r.get("title", "")
+            if not worth_reading(title):
+                continue
+            parts = [r.get("description") or ""]
+            parts += [f"{label}: {r[key]}" for label, key in (("Basic qualifications", "basic_qualifications"),
+                                                             ("Preferred qualifications", "preferred_qualifications"))
+                      if r.get(key)]
+            job = {"key": f"az:{country}:{r['id_icims']}", "company": "amazon", "title": title,
+                   "location": f"{r.get('normalized_location', '')}, India".strip(", "),
+                   "url": f"https://www.amazon.jobs{r.get('job_path', '')}", "posted": _amazon_date(r.get("posted_date")),
+                   "updated": "", "description": _plain(" ".join(parts))}
+            if r.get("is_intern") or INTERN_TITLE.search(title):
+                job["level"] = "internship"
+            jobs.append(job)
+        offset += 100
+        if len(rows) < 100:
+            break
+    return jobs
+
+
 def hydrate(job, getter=_get):
     """Fill in the description of a job that only has a list entry. Removes the helper fields once it worked."""
     url, kind = job.get("detail_url", ""), job.get("detail_kind", "")
@@ -176,6 +323,8 @@ def hydrate(job, getter=_get):
         info = d.get("jobPostingInfo") or {}
         job["description"] = _plain(info.get("jobDescription", ""))
         job["posted"] = info.get("startDate") or ""
+    elif kind == "oracle":
+        job["description"] = _oracle_text(d)
     elif kind == "smartrecruiters":
         sections = (d.get("jobAd") or {}).get("sections") or {}
         text = " ".join((sections.get(k) or {}).get("text", "")
@@ -191,6 +340,10 @@ def fetch(source, company):
         return workday_jobs(company)
     if source == "smartrecruiters":
         return smartrecruiters_jobs(company)
+    if source == "oracle":
+        return oracle_jobs(company)
+    if source == "amazon":
+        return amazon_jobs(company)
     if source == "greenhouse":
         rows = _get(f"https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true")["jobs"]
     elif source == "lever":
@@ -236,6 +389,9 @@ def run(cfg, data_dir, fetcher=fetch, now=None, hydrator=hydrate, pause=time.sle
             for job in fetcher(c["source"], c["slug"]):
                 if job["key"] in seen or not location_ok(job["location"], words):
                     continue
+                # a list-only entry has no job type yet, so only its title and level can be judged here
+                if cfg.get("internships_only") and not is_internship(job):
+                    continue
                 if job.get("detail_url"):
                     kind = job.get("detail_kind", "")
                     if budget.get(kind, 0) <= 0 or blocked:
@@ -272,16 +428,27 @@ def run(cfg, data_dir, fetcher=fetch, now=None, hydrator=hydrate, pause=time.sle
     if throttled:
         note += f"; rate limited at {throttled[0]}, the rest continues next run"
     if errors:
-        note += f"; @claude {len(errors)} board(s) failed: " + "; ".join(errors)
+        # @claude wakes it early: only for widespread failure, since one timeout among hundreds of boards is routine
+        tag = "@claude " if len(errors) * 10 > len(cfg["companies"]) else ""
+        note += f"; {tag}{len(errors)} board(s) failed: " + "; ".join(errors)
     with (data_dir / "pi_outbox.md").open("a", encoding="utf-8") as f:
         f.write(note + "\n")
     return new, errors
 
 
+def fetcher_for(cfg):
+    """With internships only, large Workday boards need just the one search."""
+    def get(source, company):
+        if source == "workday" and cfg.get("internships_only"):
+            return workday_jobs(company, queries=("intern",))
+        return fetch(source, company)
+    return get
+
+
 def main():
     cfg = json.loads((HERE / "companies.json").read_text(encoding="utf-8"))
     data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "data"
-    new, errors = run(cfg, data_dir)
+    new, errors = run(cfg, data_dir, fetcher=fetcher_for(cfg))
     print(f"new {len(new)}, errors {len(errors)}")
     for e in errors:
         print("ERROR", e, file=sys.stderr)

@@ -16,7 +16,10 @@ Then write these files:
   {"picks": [{"key": "<exact key from candidates.md>", "why": "<one line: why it fits>",
               "hook": "<one sentence for an email, starting lowercase, e.g. 'your work on X'>",
               "contact_name": "", "contact_email": ""}]}
-  Check eligibility in the FULL posting text: see the Eligibility section of profile.md. Reject any job
+  Long postings are shortened: the start, then ` [...] `, then the part that states the requirements.
+  If the requirements are still not shown, say UNVERIFIED in "why".
+  If the text does not show what the person would actually do in the job, do not pick it, whatever the title says.
+  Check eligibility in all the text shown: see the Eligibility section of profile.md. Reject any job
   that limits batch year or CGPA in a way that excludes them (code already removes the obvious ones).
   Fill contact_email ONLY if an address is written in that posting's text. Never guess an address.
   The supervisor drops any key or email that is not in the real data.

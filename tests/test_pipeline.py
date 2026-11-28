@@ -12,13 +12,14 @@ import digger  # noqa: E402
 import judge  # noqa: E402
 import fetch_jobs  # noqa: E402
 import pi_agent  # noqa: E402
-from agent import eligibility, notify, picks, rank, tracker  # noqa: E402
+from agent import eligibility, excerpt, notify, picks, rank, tracker  # noqa: E402
 from supervisor.supervisor import Supervisor  # noqa: E402
 
 
-def job(key, title="ML Intern", desc="python pytorch", posted="2026-11-20T10:00:00Z", loc="Bengaluru"):
+def job(key, title="ML Intern", desc=None, posted="2026-11-20T10:00:00Z", loc="Bengaluru"):
     return {"key": key, "company": "x", "company_name": "X", "title": title, "location": loc,
-            "url": f"https://x/{key}", "posted": posted, "updated": "", "description": desc}
+            "url": f"https://x/{key}", "posted": posted, "updated": "",
+            "description": f"python pytorch, team {key}" if desc is None else desc}
 
 
 class FetchTests(unittest.TestCase):
@@ -51,6 +52,27 @@ class FetchTests(unittest.TestCase):
             again, _ = fetch_jobs.run(cfg, Path(d), fetcher=fake)
             self.assertEqual(again, [])
             self.assertIn("@claude", (Path(d) / "pi_outbox.md").read_text())
+
+
+class FailedBoardNoteTests(unittest.TestCase):
+    def note(self, boards, broken):
+        def fake(source, slug):
+            if int(slug) < broken:
+                raise TimeoutError("slow")
+            return []
+        cfg = {"location_words": ["pune"],
+               "companies": [{"source": "greenhouse", "slug": str(i)} for i in range(boards)]}
+        with tempfile.TemporaryDirectory() as d:
+            fetch_jobs.run(cfg, Path(d), fetcher=fake)
+            return (Path(d) / "pi_outbox.md").read_text()
+
+    def test_a_few_failures_among_many_boards_are_noted_without_waking_claude(self):
+        note = self.note(boards=40, broken=2)
+        self.assertIn("2 board(s) failed", note)
+        self.assertNotIn("@claude", note)
+
+    def test_widespread_failures_wake_claude(self):
+        self.assertIn("@claude 5 board(s) failed", self.note(boards=40, broken=5))
 
 
 class LargeBoardTests(unittest.TestCase):
@@ -269,6 +291,202 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(unknown, ["7"])
 
 
+class ExcerptTests(unittest.TestCase):
+    INTRO = "About the company. " * 150  # about 2,850 characters of boilerplate
+    NEEDS = "Minimum qualifications: Bachelor's degree, 3+ years of experience. Graduating in 2028."
+
+    def test_short_text_is_unchanged(self):
+        self.assertEqual(excerpt.excerpt("short posting", 3500), "short posting")
+
+    def test_requirements_far_down_are_kept_with_the_start(self):
+        text = "Role: ML Intern. " + self.INTRO + self.NEEDS + " We are an equal employer." * 100
+        out = excerpt.excerpt(text, 2000)
+        self.assertTrue(out.startswith("Role: ML Intern."))
+        self.assertIn(self.NEEDS, out)
+        self.assertIn(" [...] ", out)
+        self.assertLessEqual(len(out), 2000)
+
+    def test_without_requirement_words_keeps_start_and_end(self):
+        out = excerpt.excerpt("START " + "filler " * 800 + "END", 1000)
+        self.assertTrue(out.startswith("START"))
+        self.assertTrue(out.endswith("END"))
+        self.assertLessEqual(len(out), 1000)
+
+    def test_collector_keeps_requirements_past_4000_characters(self):
+        raw = {"id": 1, "title": "T", "content": "x " * 3000 + self.NEEDS}
+        self.assertIn(self.NEEDS, fetch_jobs.normalize("greenhouse", "acme", raw)["description"])
+
+
+class LeverTextTests(unittest.TestCase):
+    RAW = {"id": "a", "text": "Intern", "hostedUrl": "u", "descriptionPlain": "About the company.",
+           "lists": [{"text": "Responsibilities", "content": "<li>Improve HR processes</li>"},
+                     {"text": "you should apply if you:", "content": "<li>have 1-2 years of experience</li>"}],
+           "additionalPlain": "Only 2028 graduates.", "workplaceType": "onsite",
+           "categories": {"commitment": "full time", "department": "People Corp", "team": "People Success"}}
+
+    def test_lever_keeps_every_section_and_the_job_facts(self):
+        text = fetch_jobs.normalize("lever", "acme", self.RAW)["description"]
+        for part in ("Job type: full time", "Workplace: onsite", "Department: People Corp", "Team: People Success",
+                     "About the company.", "Responsibilities: Improve HR processes",
+                     "have 1-2 years of experience", "Only 2028 graduates."):
+            self.assertIn(part, text)
+
+    def test_lever_posting_with_missing_parts_adds_no_empty_labels(self):
+        text = fetch_jobs.normalize("lever", "acme", {"id": "a", "text": "T", "descriptionPlain": "Hello"})["description"]
+        self.assertEqual(text, "Hello")
+
+
+class InternshipsOnlyTests(unittest.TestCase):
+    def keys(self, jobs, **profile):
+        return sorted(j["key"] for _, j in rank.shortlist(jobs, set(), profile=profile))
+
+    def jobs(self):
+        return [job("title", title="Software Engineer, Intern"), job("long", title="ML Internship 2027"),
+                job("lever", title="Data Analyst", desc="Job type: Intern. python"),
+                {**job("sr", title="AI Engineer"), "level": "internship"},
+                job("full", title="Software Engineer", desc="python. You will mentor interns."),
+                job("not", title="Internal Tools Engineer"),
+                job("international", title="Software Engineer, International")]
+
+    def test_only_internships_are_shortlisted(self):
+        self.assertEqual(self.keys(self.jobs(), internships_only=True), ["lever", "long", "sr", "title"])
+
+    def test_off_by_default(self):
+        self.assertIn("full", self.keys(self.jobs()))
+
+
+class RepeatPostingTests(unittest.TestCase):
+    def keys(self, jobs, reviewed=()):
+        return sorted(j["key"] for _, j in rank.shortlist(jobs, set(reviewed)))
+
+    def jobs(self):
+        same = dict(title="Software Intern", desc="Build tools in python.")
+        return [job("a", **same), job("b", **same), job("c", title="Software Intern", desc="Test firmware in python.")]
+
+    def test_the_same_posting_listed_twice_is_shortlisted_once(self):
+        self.assertEqual(len(self.keys(self.jobs())), 2)
+        self.assertIn("c", self.keys(self.jobs()))
+
+    def test_a_copy_of_a_reviewed_posting_does_not_come_back(self):
+        self.assertEqual(self.keys(self.jobs(), reviewed=["b"]), ["c"])
+
+
+class OracleAndAmazonTests(unittest.TestCase):
+    def oracle_get(self, url):
+        self.urls.append(url)
+        if "recruitingCEJobRequisitionDetails" in url:
+            return {"items": [{"ExternalDescriptionStr": "<p>Join us.</p>", "ExternalResponsibilitiesStr": "<li>Build tools</li>",
+                               "ExternalQualificationsStr": "<li>Graduating in 2028</li>", "JobSchedule": "Full time",
+                               "WorkplaceType": "On-site"}]}
+        row = lambda i, title, country, extra=(): {"Id": i, "Title": title, "PrimaryLocationCountry": country,
+                                                   "PrimaryLocation": f"City, {country}", "PostedDate": "2026-11-26",
+                                                   "secondaryLocations": list(extra)}
+        return {"items": [{"TotalJobsCount": 4, "requisitionList": [
+            row("1", "Software Intern", "IN"), row("2", "Software Intern", "US"),
+            row("3", "Data Intern", "US", [{"CountryCode": "IN", "Name": "Pune, India"}]),
+            row("4", "Senior Software Engineer", "IN")]}]}
+
+    def setUp(self):
+        self.urls = []
+
+    def test_oracle_keeps_only_india_and_reads_every_section(self):
+        jobs = fetch_jobs.oracle_jobs("abc.fa.us2.oraclecloud.com/CX_1", getter=self.oracle_get, pause=lambda s: None)
+        self.assertEqual([j["key"] for j in jobs], ["or:abc:1", "or:abc:3"])
+        self.assertEqual(jobs[1]["location"], "Pune, India")
+        self.assertIn("/sites/CX_1/job/1", jobs[0]["url"])
+        self.assertIn("siteNumber=CX_1,keyword=intern,location=India", self.urls[0])
+        full = fetch_jobs.hydrate(jobs[0], getter=self.oracle_get)
+        for part in ("Workplace: On-site", "Join us.", "Build tools", "Graduating in 2028"):
+            self.assertIn(part, full["description"])
+        self.assertNotIn("detail_url", full)
+
+    def test_oracle_uses_the_short_description_when_there_is_no_long_one(self):
+        reply = {"items": [{"ShortDescriptionStr": "<p>Design AI models.</p>", "ExternalDescriptionStr": ""}]}
+        full = fetch_jobs.hydrate({"detail_url": "u", "detail_kind": "oracle"}, getter=lambda u: reply)
+        self.assertIn("Design AI models.", full["description"])
+
+    def test_amazon_reads_qualifications_and_marks_interns(self):
+        data = {"jobs": [{"id_icims": "9", "title": "Data Scientist Intern", "normalized_location": "Chennai, Tamil Nadu, IND",
+                          "job_path": "/en/jobs/9/x", "posted_date": "November 24, 2026", "is_intern": True,
+                          "description": "Role.<br/>", "basic_qualifications": "- Python", "preferred_qualifications": "- SQL"}]}
+        job_ = fetch_jobs.amazon_jobs("IND", getter=lambda u: data, pause=lambda s: None)[0]
+        self.assertEqual((job_["key"], job_["posted"], job_["level"]), ("az:IND:9", "2026-11-24", "internship"))
+        self.assertEqual(job_["url"], "https://www.amazon.jobs/en/jobs/9/x")
+        self.assertTrue(job_["location"].endswith("India"))
+        for part in ("Role.", "Basic qualifications: - Python", "Preferred qualifications: - SQL"):
+            self.assertIn(part, job_["description"])
+
+    def test_large_boards_keep_intern_titles_without_a_tech_word(self):
+        self.assertTrue(fetch_jobs.worth_reading("2027 Summer Intern"))
+        self.assertTrue(fetch_jobs.worth_reading("Software Engineer"))
+        self.assertFalse(fetch_jobs.worth_reading("HR Intern"))
+        self.assertFalse(fetch_jobs.worth_reading("Senior Software Engineer"))
+        self.assertFalse(fetch_jobs.worth_reading("Accountant"))
+
+
+class WorkdayCityFilterTests(unittest.TestCase):
+    def test_board_with_only_city_filters_uses_the_indian_ones(self):
+        sent = []
+        facets = [{"facetParameter": "locationMainGroup", "values": [{"facetParameter": "locations", "values": [
+            {"descriptor": "Bengaluru, Karnataka", "id": "blr"}, {"descriptor": "IND19-01-Pune", "id": "pun"},
+            {"descriptor": "Mysuru, India", "id": "mys"}, {"descriptor": "Indianapolis, Indiana", "id": "usa"},
+            {"descriptor": "Berlin, Germany", "id": "ber"}]}]}]
+
+        def post(url, payload):
+            sent.append(payload["appliedFacets"])
+            return {"total": 1, "facets": facets, "jobPostings": [
+                {"externalPath": "/job/Bengaluru/College-Intern_R1", "title": "College Intern", "locationsText": "2 Locations"}]}
+
+        jobs = fetch_jobs.workday_jobs("hpe/wd5/Jobs", post=post, pause=lambda s: None, queries=("intern",))
+        self.assertEqual(sent[-1], {"locations": ["blr", "pun", "mys"]})
+        self.assertEqual([j["title"] for j in jobs], ["College Intern"])
+        self.assertIn("india", jobs[0]["location"].lower())
+
+
+class WorkdayPagingTests(unittest.TestCase):
+    def test_reads_past_page_two_when_later_pages_report_total_zero(self):
+        facets = [{"facetParameter": "Location_Country", "values": [{"descriptor": "India", "id": "in"}]}]
+
+        def post(url, payload):  # like the real API: only the first page carries the total
+            first = payload["offset"] == 0
+            rows = range(payload["offset"], min(payload["offset"] + 20, 76))
+            return {"total": 76 if first else 0, "facets": facets, "jobPostings": [
+                {"externalPath": f"/job/India-Pune/Software-Intern_R{i}", "title": "Software Intern",
+                 "locationsText": "Pune, India"} for i in rows]}
+
+        jobs = fetch_jobs.workday_jobs("a/wd1/b", post=post, pause=lambda s: None, queries=("intern",), max_pages=10)
+        self.assertEqual(len(jobs), 76)
+
+
+class InternCollectorTests(unittest.TestCase):
+    def test_ashby_keeps_the_job_type(self):
+        raw = {"id": "1", "title": "Software Engineer", "location": "Pune", "employmentType": "Intern",
+               "descriptionPlain": "Build."}
+        self.assertTrue(fetch_jobs.is_internship(fetch_jobs.normalize("ashby", "acme", raw)))
+
+    def test_internships_only_saves_and_hydrates_only_interns(self):
+        def found(key, title, **extra):
+            return {"key": key, "company": "x", "title": title, "location": "Pune, India", "url": "u",
+                    "posted": "", "updated": "", "description": "text", **extra}
+
+        asked = []
+
+        def hydrator(j):
+            asked.append(j["key"])
+            return {k: v for k, v in j.items() if not k.startswith("detail_")}
+
+        listed = [found("a", "ML Intern"), found("b", "Software Engineer"),
+                  found("c", "Software Engineer", detail_url="u", detail_kind="workday"),
+                  found("d", "College Intern", detail_url="u", detail_kind="workday"),
+                  found("e", "AI Engineer", level="internship")]
+        cfg = {"internships_only": True, "location_words": ["india"],
+               "companies": [{"source": "greenhouse", "slug": "x"}]}
+        with tempfile.TemporaryDirectory() as d:
+            new, _ = fetch_jobs.run(cfg, Path(d), fetcher=lambda s, c: listed, hydrator=hydrator, pause=lambda s: None)
+        self.assertEqual([j["key"] for j in new], ["a", "d", "e"])
+        self.assertEqual(asked, ["d"])
+
+
 class SupervisorTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -306,6 +524,13 @@ class SupervisorTests(unittest.TestCase):
         self.assertIn("next_wake: 2026-11-25T09:00", (self.ws / "schedule.md").read_text())
         self.assertEqual(self.sup().run(force=True), "cap")
         self.assertEqual(self.calls, 1)
+
+    def test_claude_is_shown_requirements_from_deep_in_the_posting(self):
+        long = "python " * 700 + "Minimum qualifications: 2028 graduates."
+        (self.ws / "inbox" / "backlog.jsonl").write_text(json.dumps(job("a", desc=long)) + "\n")
+        self.sup().run()
+        self.assertIn("Minimum qualifications: 2028 graduates.",
+                      (self.ws / "candidates.md").read_text(encoding="utf-8"))
 
     def test_reviewed_jobs_not_shown_again(self):
         self.sup().run()
@@ -432,6 +657,18 @@ class PiAgentTests(unittest.TestCase):
         self.assertEqual(cfg["location_words"], ["india"])
         self.assertTrue(any("not added" in r for r in report))
         self.assertTrue(any("ignored unknown action" in r for r in report))
+
+    def test_request_the_model_dropped_is_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "pi_inbox.md").write_text("- [claude 2026-11-25] add company Razorpay; add company Observe.AI; "
+                                           "add company Hasura.\n")
+            cfg = d / "companies.json"
+            cfg.write_text(json.dumps({"location_words": [], "companies": []}))
+            ask = lambda m: [{"type": "add_company", "name": "Razorpay"}, {"type": "add_company", "name": "observe.ai"}]
+            reply = pi_agent.run(d, cfg, ask=ask, fetcher=self.fake_fetch)[0]
+            self.assertIn("Hasura: not handled", reply)
+            self.assertEqual(reply.count("not handled"), 1)
 
     def test_messages_handled_once(self):
         with tempfile.TemporaryDirectory() as d:

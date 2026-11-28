@@ -5,6 +5,8 @@ It is deliberately simple: Claude makes the real judgment on the shortlist.
 """
 import re
 
+from pi.fetch_jobs import is_internship
+
 from . import eligibility
 
 POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
@@ -50,12 +52,26 @@ def score(job):
     return s
 
 
+def _same_posting(job):
+    """Equal for copies of one opening: some companies list it several times under different ids."""
+    return tuple(" ".join(str(job.get(k, "")).lower().split())
+                 for k in ("company", "title", "location", "description"))
+
+
 def shortlist(jobs, exclude_keys, n=30, profile=None, verdicts=None):
     """Top n by score. Jobs whose posting rules you out (batch year, CGPA) never reach Claude."""
     profile = profile or {}
     verdicts = verdicts or {}  # the Pi model's title check: only an explicit "no" drops a job
     scored = [(score(j), j) for j in jobs
-              if j["key"] not in exclude_keys and verdicts.get(j["key"]) != "no" and not eligibility.check(j, profile)]
+              if j["key"] not in exclude_keys and verdicts.get(j["key"]) != "no" and not eligibility.check(j, profile)
+              and (not profile.get("internships_only") or is_internship(j))]
     scored = [(s, j) for s, j in scored if s > 0]  # negative = clearly not a student role
     scored.sort(key=lambda sj: (sj[0], sj[1].get("posted", "")), reverse=True)
-    return scored[:n]
+    taken = {_same_posting(j) for j in jobs if j["key"] in exclude_keys}
+    unique = []
+    for s, j in scored:
+        posting = _same_posting(j)
+        if posting not in taken:
+            taken.add(posting)
+            unique.append((s, j))
+    return unique[:n]

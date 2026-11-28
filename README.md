@@ -21,7 +21,7 @@ flowchart LR
         C[Claude Code<br/>headless, 10 min max]
         O[outreach tool<br/>Gmail drafts only]
     end
-    B[(Greenhouse / Lever / Ashby /<br/>Workday / SmartRecruiters)] --> F
+    B[(Greenhouse / Lever / Ashby / Workday /<br/>SmartRecruiters / Oracle / Amazon)] --> F
     F -- backlog.jsonl, pi_outbox.md --> S
     J -- verdicts.jsonl --> S
     S -- candidates.md, state.md --> C
@@ -35,7 +35,7 @@ flowchart LR
 
 | Agent | Runs on | Job |
 |---|---|---|
-| **Collector** | Raspberry Pi | Pulls public job-board APIs every 6 hours, keeps new India / remote roles. Keeps working while the laptop is off. |
+| **Collector** | Raspberry Pi | Pulls public job-board APIs every 6 hours, keeps new India / remote roles (only internships, with `internships_only` in its company list). Keeps working while the laptop is off. |
 | **Pi agent** | Raspberry Pi, local LLM | Reads Claude's requests ("add Meesho, drop Druva"), turns them into actions with a small local model (Qwen3-4B-Instruct via llama-server), and replies. Code checks every action: a company is added only if a real public board with jobs exists. It can never touch code. |
 | **Digger** | Raspberry Pi, code + local LLM | Finds job boards the company list does not know, by reading a company's own careers page. The model only names companies from search text and picks a careers link; a board is added only if the live board answers. Companies with fully custom career sites are not covered. |
 | **Judge** | Raspberry Pi, local LLM | A yes/no on each job title. Only an explicit "no" drops a job; if the model is down or unclear, the job stays in. |
@@ -45,7 +45,8 @@ flowchart LR
 
 ## Design choices
 - **Small reads per wake.** Claude reads a 3 KB candidate profile (not the full resume) and a shortlist of 20 jobs,
-  2,000 characters each, so each wake reads roughly 40 KB.
+  up to 3,500 characters each (the start of the posting plus the part that
+  states the requirements), so each wake reads roughly 75 KB.
 - **Files are the memory.** Claude starts every session with no memory. `state.md` (its own notes, under 60 lines),
   `chat.md`, `schedule.md` and `log.jsonl` carry everything between runs, so each wake-up reads about a page.
   Every file has one writer, so two machines never corrupt the same file.
@@ -78,7 +79,7 @@ flowchart LR
 ## Run it
 ```
 python -m supervisor.supervisor --demo     # sample data, fake reviewer, touches nothing else
-python -m unittest discover -s tests       # 49 tests
+python -m unittest discover -s tests       # 71 tests
 ```
 Real setup: copy `config.example.json` to `config.json` (gitignored; set your `profile` there), copy `pi/` to the Pi and add a cron line:
 ```
@@ -106,6 +107,7 @@ pi/judge.py               title-level yes/no filter
 pi/companies.json         starting list of boards (the Pi agent edits its own copy on the Pi)
 agent/eligibility.py      hard eligibility rules (batch year, CGPA)
 agent/rank.py             keyword pre-ranking
+agent/excerpt.py          picks which parts of a long posting Claude reads
 agent/picks.py            validates Claude's picks, builds the digest from real data
 agent/tracker.py          one tracker: pipeline columns + my columns
 agent/notify.py           ntfy push

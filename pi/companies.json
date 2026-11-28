@@ -253,6 +253,1172 @@
       "name": "Mixpanel",
       "source": "greenhouse",
       "slug": "mixpanel"
+    },
+    {
+      "name": "Razorpay",
+      "source": "greenhouse",
+      "slug": "razorpaysoftwareprivatelimited"
+    },
+    {
+      "name": "OpenAI",
+      "source": "ashby",
+      "slug": "openai"
+    },
+    {
+      "name": "hevodata",
+      "source": "lever",
+      "slug": "hevodata"
+    },
+    {
+      "name": "philips",
+      "source": "workday",
+      "slug": "philips/wd3/jobs-and-careers"
+    },
+    {
+      "name": "Airbus",
+      "source": "workday",
+      "slug": "ag/wd3/Airbus"
+    },
+    {
+      "name": "towerresearchcapital",
+      "source": "greenhouse",
+      "slug": "towerresearchcapital"
+    },
+    {
+      "name": "marvell",
+      "source": "workday",
+      "slug": "marvell/wd1/MarvellCareers"
+    },
+    {
+      "name": "valeo",
+      "source": "workday",
+      "slug": "valeo/wd3/valeo_jobs"
+    },
+    {
+      "name": "thales",
+      "source": "workday",
+      "slug": "thales/wd3/careers"
+    },
+    {
+      "name": "globalizationpartners",
+      "source": "greenhouse",
+      "slug": "globalizationpartners"
+    },
+    {
+      "name": "enterpret",
+      "source": "greenhouse",
+      "slug": "enterpret"
+    },
+    {
+      "name": "cloudsek",
+      "source": "greenhouse",
+      "slug": "cloudsek"
+    },
+    {
+      "name": "commerceiq",
+      "source": "greenhouse",
+      "slug": "commerceiq"
+    },
+    {
+      "name": "fampay",
+      "source": "lever",
+      "slug": "fampay"
+    },
+    {
+      "name": "airbound",
+      "source": "ashby",
+      "slug": "airbound"
+    },
+    {
+      "name": "atlys",
+      "source": "ashby",
+      "slug": "atlys"
+    },
+    {
+      "name": "jobtwine",
+      "source": "lever",
+      "slug": "jobtwine"
+    },
+    {
+      "name": "Accor",
+      "source": "smartrecruiters",
+      "slug": "accorhotel"
+    },
+    {
+      "name": "hackerrank",
+      "source": "greenhouse",
+      "slug": "hackerrank"
+    },
+    {
+      "name": "certa",
+      "source": "ashby",
+      "slug": "certa"
+    },
+    {
+      "name": "revvity",
+      "source": "workday",
+      "slug": "revvity/wd103/External"
+    },
+    {
+      "name": "HPE",
+      "source": "workday",
+      "slug": "hpe/wd5/Jobsathpe"
+    },
+    {
+      "name": "GE HealthCare",
+      "source": "workday",
+      "slug": "gehc/wd5/GEHC_ExternalSite"
+    },
+    {
+      "name": "Deutsche Bank",
+      "source": "workday",
+      "slug": "db/wd3/DBWebsite"
+    },
+    {
+      "name": "HP",
+      "source": "workday",
+      "slug": "hp/wd5/ExternalCareerSite"
+    },
+    {
+      "name": "Johnson Controls",
+      "source": "workday",
+      "slug": "jci/wd5/JCI"
+    },
+    {
+      "name": "swiggy",
+      "source": "smartrecruiters",
+      "slug": "swiggy"
+    },
+    {
+      "name": "GE Vernova",
+      "source": "workday",
+      "slug": "gevernova/wd5/Vernova_ExternalSite"
+    },
+    {
+      "name": "micron",
+      "source": "workday",
+      "slug": "micron/wd1/External"
+    },
+    {
+      "name": "Eurofins",
+      "source": "smartrecruiters",
+      "slug": "Eurofins"
+    },
+    {
+      "name": "globalfoundries",
+      "source": "workday",
+      "slug": "globalfoundries/wd1/External"
+    },
+    {
+      "name": "KLA",
+      "source": "workday",
+      "slug": "kla/wd1/UR"
+    },
+    {
+      "name": "icf",
+      "source": "workday",
+      "slug": "icf/wd5/ICFExternal_Career_Site"
+    },
+    {
+      "name": "viavisolutions",
+      "source": "workday",
+      "slug": "viavisolutions/wd1/careers"
+    },
+    {
+      "name": "assurant",
+      "source": "workday",
+      "slug": "assurant/wd1/External_Limited_Posting"
+    },
+    {
+      "name": "crowe",
+      "source": "workday",
+      "slug": "crowe/wd12/external_careers"
+    },
+    {
+      "name": "marvell",
+      "source": "workday",
+      "slug": "marvell/wd1/marvellcareers2"
+    },
+    {
+      "name": "magna",
+      "source": "workday",
+      "slug": "magna/wd3/Magna"
+    },
+    {
+      "name": "msd",
+      "source": "workday",
+      "slug": "msd/wd5/searchjobs"
+    },
+    {
+      "name": "tranetechnologies",
+      "source": "workday",
+      "slug": "tranetechnologies/wd12/trane_technologies_careers"
+    },
+    {
+      "name": "visa",
+      "source": "workday",
+      "slug": "visa/wd5/visa_talent_portal"
+    },
+    {
+      "name": "morningstar",
+      "source": "workday",
+      "slug": "morningstar/wd5/morningstar"
+    },
+    {
+      "name": "walmart",
+      "source": "workday",
+      "slug": "walmart/wd504/WalmartExternal"
+    },
+    {
+      "name": "Jonas Software",
+      "source": "workday",
+      "slug": "talentmanagementsolution/wd3/JonasSoftwareUSA"
+    },
+    {
+      "name": "Marsh McLennan",
+      "source": "workday",
+      "slug": "mmc/wd1/mmc"
+    },
+    {
+      "name": "bureau",
+      "source": "ashby",
+      "slug": "bureau"
+    },
+    {
+      "name": "pocketfm",
+      "source": "lever",
+      "slug": "pocketfm"
+    },
+    {
+      "name": "nium",
+      "source": "lever",
+      "slug": "nium"
+    },
+    {
+      "name": "airwallex",
+      "source": "ashby",
+      "slug": "airwallex"
+    },
+    {
+      "name": "devrev",
+      "source": "greenhouse",
+      "slug": "devrev"
+    },
+    {
+      "name": "composio",
+      "source": "ashby",
+      "slug": "composio"
+    },
+    {
+      "name": "togetherai",
+      "source": "greenhouse",
+      "slug": "togetherai"
+    },
+    {
+      "name": "lyzr",
+      "source": "ashby",
+      "slug": "lyzr"
+    },
+    {
+      "name": "bolna",
+      "source": "ashby",
+      "slug": "bolna"
+    },
+    {
+      "name": "yugabyte",
+      "source": "greenhouse",
+      "slug": "yugabyte"
+    },
+    {
+      "name": "clickhouse",
+      "source": "ashby",
+      "slug": "clickhouse"
+    },
+    {
+      "name": "redis",
+      "source": "ashby",
+      "slug": "redis"
+    },
+    {
+      "name": "fastly",
+      "source": "greenhouse",
+      "slug": "fastly"
+    },
+    {
+      "name": "appsflyer",
+      "source": "greenhouse",
+      "slug": "appsflyer"
+    },
+    {
+      "name": "thoughtworks",
+      "source": "ashby",
+      "slug": "thoughtworks"
+    },
+    {
+      "name": "deliveroo",
+      "source": "greenhouse",
+      "slug": "deliveroo"
+    },
+    {
+      "name": "linkedin",
+      "source": "lever",
+      "slug": "linkedin"
+    },
+    {
+      "name": "applied",
+      "source": "ashby",
+      "slug": "applied"
+    },
+    {
+      "name": "labelbox",
+      "source": "greenhouse",
+      "slug": "labelbox"
+    },
+    {
+      "name": "cursor",
+      "source": "ashby",
+      "slug": "cursor"
+    },
+    {
+      "name": "WTW",
+      "source": "oracle",
+      "slug": "eedu.fa.em3.oraclecloud.com/CX_1003"
+    },
+    {
+      "name": "Citco",
+      "source": "oracle",
+      "slug": "fa-euxc-saasfaprod1.fa.ocs.oraclecloud.com/CX_1"
+    },
+    {
+      "name": "Honeywell",
+      "source": "oracle",
+      "slug": "ibqbjb.fa.ocs.oraclecloud.com/CX_1"
+    },
+    {
+      "name": "Amazon",
+      "source": "amazon",
+      "slug": "IND"
+    },
+    {
+      "name": "agoda",
+      "source": "greenhouse",
+      "slug": "agoda"
+    },
+    {
+      "name": "gravitonresearchcapital",
+      "source": "greenhouse",
+      "slug": "gravitonresearchcapital"
+    },
+    {
+      "name": "imc",
+      "source": "greenhouse",
+      "slug": "imc"
+    },
+    {
+      "name": "tripactions",
+      "source": "greenhouse",
+      "slug": "tripactions"
+    },
+    {
+      "name": "aqr",
+      "source": "greenhouse",
+      "slug": "aqr"
+    },
+    {
+      "name": "worldquant",
+      "source": "greenhouse",
+      "slug": "worldquant"
+    },
+    {
+      "name": "jfrog",
+      "source": "greenhouse",
+      "slug": "jfrog"
+    },
+    {
+      "name": "fivetran",
+      "source": "greenhouse",
+      "slug": "fivetran"
+    },
+    {
+      "name": "anthropic",
+      "source": "greenhouse",
+      "slug": "anthropic"
+    },
+    {
+      "name": "highradius",
+      "source": "greenhouse",
+      "slug": "highradius"
+    },
+    {
+      "name": "turing",
+      "source": "greenhouse",
+      "slug": "turing"
+    },
+    {
+      "name": "zuora",
+      "source": "greenhouse",
+      "slug": "zuora"
+    },
+    {
+      "name": "contentstack",
+      "source": "greenhouse",
+      "slug": "contentstack"
+    },
+    {
+      "name": "commvault",
+      "source": "greenhouse",
+      "slug": "commvault"
+    },
+    {
+      "name": "snowflake",
+      "source": "ashby",
+      "slug": "snowflake"
+    },
+    {
+      "name": "zetaglobal",
+      "source": "greenhouse",
+      "slug": "zetaglobal"
+    },
+    {
+      "name": "squarepointcapital",
+      "source": "greenhouse",
+      "slug": "squarepointcapital"
+    },
+    {
+      "name": "toast",
+      "source": "greenhouse",
+      "slug": "toast"
+    },
+    {
+      "name": "kong",
+      "source": "ashby",
+      "slug": "kong"
+    },
+    {
+      "name": "plane",
+      "source": "ashby",
+      "slug": "plane"
+    },
+    {
+      "name": "tekion",
+      "source": "ashby",
+      "slug": "tekion"
+    },
+    {
+      "name": "signoz",
+      "source": "ashby",
+      "slug": "signoz"
+    },
+    {
+      "name": "galaxydigitalservices",
+      "source": "greenhouse",
+      "slug": "galaxydigitalservices"
+    },
+    {
+      "name": "addepar1",
+      "source": "greenhouse",
+      "slug": "addepar1"
+    },
+    {
+      "name": "point72",
+      "source": "greenhouse",
+      "slug": "point72"
+    },
+    {
+      "name": "arcesiumllc",
+      "source": "greenhouse",
+      "slug": "arcesiumllc"
+    },
+    {
+      "name": "celonis",
+      "source": "greenhouse",
+      "slug": "celonis"
+    },
+    {
+      "name": "aidashinc",
+      "source": "greenhouse",
+      "slug": "aidashinc"
+    },
+    {
+      "name": "shield",
+      "source": "ashby",
+      "slug": "shield"
+    },
+    {
+      "name": "pebl",
+      "source": "ashby",
+      "slug": "pebl"
+    },
+    {
+      "name": "quadric",
+      "source": "ashby",
+      "slug": "quadric"
+    },
+    {
+      "name": "singlestore",
+      "source": "greenhouse",
+      "slug": "singlestore"
+    },
+    {
+      "name": "quberesearchandtechnologies",
+      "source": "greenhouse",
+      "slug": "quberesearchandtechnologies"
+    },
+    {
+      "name": "appian",
+      "source": "greenhouse",
+      "slug": "appian"
+    },
+    {
+      "name": "gleanwork",
+      "source": "greenhouse",
+      "slug": "gleanwork"
+    },
+    {
+      "name": "skillzinc",
+      "source": "greenhouse",
+      "slug": "skillzinc"
+    },
+    {
+      "name": "veeva",
+      "source": "lever",
+      "slug": "veeva"
+    },
+    {
+      "name": "truveta",
+      "source": "greenhouse",
+      "slug": "truveta"
+    },
+    {
+      "name": "acronaviation",
+      "source": "lever",
+      "slug": "acronaviation"
+    },
+    {
+      "name": "pattern",
+      "source": "lever",
+      "slug": "pattern"
+    },
+    {
+      "name": "g2",
+      "source": "ashby",
+      "slug": "g2"
+    },
+    {
+      "name": "harvey",
+      "source": "ashby",
+      "slug": "harvey"
+    },
+    {
+      "name": "opengov",
+      "source": "ashby",
+      "slug": "opengov"
+    },
+    {
+      "name": "coderabbit",
+      "source": "ashby",
+      "slug": "coderabbit"
+    },
+    {
+      "name": "wpp",
+      "source": "greenhouse",
+      "slug": "wpp"
+    },
+    {
+      "name": "xometry",
+      "source": "greenhouse",
+      "slug": "xometry"
+    },
+    {
+      "name": "zocdoc",
+      "source": "greenhouse",
+      "slug": "zocdoc"
+    },
+    {
+      "name": "capco",
+      "source": "greenhouse",
+      "slug": "capco"
+    },
+    {
+      "name": "scopely",
+      "source": "greenhouse",
+      "slug": "scopely"
+    },
+    {
+      "name": "vonage",
+      "source": "greenhouse",
+      "slug": "vonage"
+    },
+    {
+      "name": "amtechsoftware",
+      "source": "greenhouse",
+      "slug": "amtechsoftware"
+    },
+    {
+      "name": "anaplan",
+      "source": "greenhouse",
+      "slug": "anaplan"
+    },
+    {
+      "name": "entrata",
+      "source": "lever",
+      "slug": "entrata"
+    },
+    {
+      "name": "smart-working-solutions",
+      "source": "lever",
+      "slug": "smart-working-solutions"
+    },
+    {
+      "name": "aeratechnology",
+      "source": "lever",
+      "slug": "aeratechnology"
+    },
+    {
+      "name": "acceldata",
+      "source": "lever",
+      "slug": "acceldata"
+    },
+    {
+      "name": "Cyberhaven",
+      "source": "ashby",
+      "slug": "Cyberhaven"
+    },
+    {
+      "name": "Vultr",
+      "source": "ashby",
+      "slug": "Vultr"
+    },
+    {
+      "name": "Inovalon",
+      "source": "ashby",
+      "slug": "Inovalon"
+    },
+    {
+      "name": "certifyos",
+      "source": "ashby",
+      "slug": "certifyos"
+    },
+    {
+      "name": "blitzy",
+      "source": "ashby",
+      "slug": "blitzy"
+    },
+    {
+      "name": "netgear",
+      "source": "ashby",
+      "slug": "netgear"
+    },
+    {
+      "name": "uipath",
+      "source": "ashby",
+      "slug": "uipath"
+    },
+    {
+      "name": "surveymonkey",
+      "source": "ashby",
+      "slug": "surveymonkey"
+    },
+    {
+      "name": "ttecdigital",
+      "source": "lever",
+      "slug": "ttecdigital"
+    },
+    {
+      "name": "gohighlevel",
+      "source": "lever",
+      "slug": "gohighlevel"
+    },
+    {
+      "name": "Onehouse",
+      "source": "lever",
+      "slug": "Onehouse"
+    },
+    {
+      "name": "zebra",
+      "source": "workday",
+      "slug": "zebra/wd501/Zebra_careers"
+    },
+    {
+      "name": "LSEG",
+      "source": "workday",
+      "slug": "lseg/wd3/Careers"
+    },
+    {
+      "name": "S&P Global",
+      "source": "workday",
+      "slug": "spgi/wd5/SPGI_Careers"
+    },
+    {
+      "name": "cigna",
+      "source": "workday",
+      "slug": "cigna/wd5/cignacareers"
+    },
+    {
+      "name": "stryker",
+      "source": "workday",
+      "slug": "stryker/wd1/StrykerCareers"
+    },
+    {
+      "name": "intel",
+      "source": "workday",
+      "slug": "intel/wd1/External"
+    },
+    {
+      "name": "Caterpillar",
+      "source": "workday",
+      "slug": "cat/wd5/CaterpillarCareers"
+    },
+    {
+      "name": "postman",
+      "source": "workday",
+      "slug": "postman/wd108/careers"
+    },
+    {
+      "name": "visa",
+      "source": "workday",
+      "slug": "visa/wd5/Visa"
+    },
+    {
+      "name": "cisco",
+      "source": "workday",
+      "slug": "cisco/wd5/Cisco_Careers"
+    },
+    {
+      "name": "broadcom",
+      "source": "workday",
+      "slug": "broadcom/wd1/External_Career"
+    },
+    {
+      "name": "blackrock",
+      "source": "workday",
+      "slug": "blackrock/wd1/BlackRock_Professional"
+    },
+    {
+      "name": "paloaltonetworks",
+      "source": "workday",
+      "slug": "paloaltonetworks/wd5/panwexternalcareers"
+    },
+    {
+      "name": "Applied Materials",
+      "source": "workday",
+      "slug": "amat/wd1/External"
+    },
+    {
+      "name": "Northern Trust",
+      "source": "workday",
+      "slug": "ntrs/wd1/northerntrust"
+    },
+    {
+      "name": "sabre",
+      "source": "workday",
+      "slug": "sabre/wd1/SabreJobs"
+    },
+    {
+      "name": "shell",
+      "source": "workday",
+      "slug": "shell/wd3/ShellCareers"
+    },
+    {
+      "name": "equifax",
+      "source": "workday",
+      "slug": "equifax/wd5/External"
+    },
+    {
+      "name": "statestreet",
+      "source": "workday",
+      "slug": "statestreet/wd1/Global"
+    },
+    {
+      "name": "motorolasolutions",
+      "source": "workday",
+      "slug": "motorolasolutions/wd5/Careers"
+    },
+    {
+      "name": "thomsonreuters",
+      "source": "workday",
+      "slug": "thomsonreuters/wd5/External_Career_Site"
+    },
+    {
+      "name": "wk",
+      "source": "workday",
+      "slug": "wk/wd3/External"
+    },
+    {
+      "name": "target",
+      "source": "workday",
+      "slug": "target/wd5/targetcareers"
+    },
+    {
+      "name": "F5",
+      "source": "workday",
+      "slug": "ffive/wd5/f5jobs"
+    },
+    {
+      "name": "rockwellautomation",
+      "source": "workday",
+      "slug": "rockwellautomation/wd1/External_Rockwell_Automation"
+    },
+    {
+      "name": "trimble",
+      "source": "workday",
+      "slug": "trimble/wd1/TrimbleCareers"
+    },
+    {
+      "name": "guidewire",
+      "source": "workday",
+      "slug": "guidewire/wd5/External"
+    },
+    {
+      "name": "unisys",
+      "source": "workday",
+      "slug": "unisys/wd5/External"
+    },
+    {
+      "name": "astrazeneca",
+      "source": "workday",
+      "slug": "astrazeneca/wd3/Careers"
+    },
+    {
+      "name": "invesco",
+      "source": "workday",
+      "slug": "invesco/wd1/IVZ"
+    },
+    {
+      "name": "abbott",
+      "source": "workday",
+      "slug": "abbott/wd5/abbottcareers"
+    },
+    {
+      "name": "RTX",
+      "source": "workday",
+      "slug": "globalhr/wd5/rec_rtx_ext_gateway"
+    },
+    {
+      "name": "Marmon",
+      "source": "workday",
+      "slug": "marmon/wd501/Marmon_Careers"
+    },
+    {
+      "name": "usbank",
+      "source": "workday",
+      "slug": "usbank/wd1/US_Bank_Careers"
+    },
+    {
+      "name": "The Toro Company",
+      "source": "workday",
+      "slug": "ttc/wd1/Toro_External_Careers"
+    },
+    {
+      "name": "huron",
+      "source": "workday",
+      "slug": "huron/wd1/huroncareers"
+    },
+    {
+      "name": "Ryan",
+      "source": "workday",
+      "slug": "ryan/wd1/RyanCareers"
+    },
+    {
+      "name": "leidos",
+      "source": "workday",
+      "slug": "leidos/wd5/External"
+    },
+    {
+      "name": "Q2",
+      "source": "workday",
+      "slug": "q2ebanking/wd5/Q2"
+    },
+    {
+      "name": "jabil",
+      "source": "workday",
+      "slug": "jabil/wd5/Jabil_Careers"
+    },
+    {
+      "name": "abb",
+      "source": "workday",
+      "slug": "abb/wd3/external_career_page"
+    },
+    {
+      "name": "vanguard",
+      "source": "workday",
+      "slug": "vanguard/wd5/vanguard_external"
+    },
+    {
+      "name": "slihrms",
+      "source": "workday",
+      "slug": "slihrms/wd3/careers"
+    },
+    {
+      "name": "AmerisourceBergen",
+      "source": "workday",
+      "slug": "myhrabc/wd5/Global"
+    },
+    {
+      "name": "churchdwight",
+      "source": "workday",
+      "slug": "churchdwight/wd1/chdcareers"
+    },
+    {
+      "name": "freseniusmedicalcare",
+      "source": "workday",
+      "slug": "freseniusmedicalcare/wd3/fme"
+    },
+    {
+      "name": "Johnson & Johnson",
+      "source": "workday",
+      "slug": "jj/wd5/JJ"
+    },
+    {
+      "name": "dow",
+      "source": "workday",
+      "slug": "dow/wd1/ExternalCareers"
+    },
+    {
+      "name": "TSYS / Worldpay",
+      "source": "workday",
+      "slug": "tsys/wd1/TSYS"
+    },
+    {
+      "name": "jll",
+      "source": "workday",
+      "slug": "jll/wd1/jllcareers"
+    },
+    {
+      "name": "entrust",
+      "source": "workday",
+      "slug": "entrust/wd1/entrustcareers"
+    },
+    {
+      "name": "borgwarner",
+      "source": "workday",
+      "slug": "borgwarner/wd5/BorgWarner_Careers"
+    },
+    {
+      "name": "valmont",
+      "source": "workday",
+      "slug": "valmont/wd1/ValmontCareers"
+    },
+    {
+      "name": "nike",
+      "source": "workday",
+      "slug": "nike/wd1/nke"
+    },
+    {
+      "name": "kiongroup",
+      "source": "workday",
+      "slug": "kiongroup/wd3/kiongroup"
+    },
+    {
+      "name": "microchiphr",
+      "source": "workday",
+      "slug": "microchiphr/wd5/external"
+    },
+    {
+      "name": "Light & Wonder",
+      "source": "workday",
+      "slug": "lnw/wd5/lightwonderexternalcareers"
+    },
+    {
+      "name": "Samsung",
+      "source": "workday",
+      "slug": "sec/wd3/Samsung_Careers"
+    },
+    {
+      "name": "astreya",
+      "source": "workday",
+      "slug": "astreya/wd5/life-at-astreya-opportunities"
+    },
+    {
+      "name": "aptiv",
+      "source": "workday",
+      "slug": "aptiv/wd5/aptiv_careers"
+    },
+    {
+      "name": "aspentech",
+      "source": "workday",
+      "slug": "aspentech/wd5/aspentech"
+    },
+    {
+      "name": "The Hartford",
+      "source": "workday",
+      "slug": "thehartford/wd5/Careers_External"
+    },
+    {
+      "name": "verizon",
+      "source": "workday",
+      "slug": "verizon/wd12/verizon-careers"
+    },
+    {
+      "name": "hitachi",
+      "source": "workday",
+      "slug": "hitachi/wd1/hitachi"
+    },
+    {
+      "name": "pentair",
+      "source": "workday",
+      "slug": "pentair/wd5/pentair_careers"
+    },
+    {
+      "name": "altera",
+      "source": "workday",
+      "slug": "altera/wd1/altera"
+    },
+    {
+      "name": "aveva",
+      "source": "workday",
+      "slug": "aveva/wd3/AVEVA_careers"
+    },
+    {
+      "name": "boeing",
+      "source": "workday",
+      "slug": "boeing/wd1/EXTERNAL_CAREERS"
+    },
+    {
+      "name": "cai",
+      "source": "workday",
+      "slug": "cai/wd5/computer_aid"
+    },
+    {
+      "name": "chemours",
+      "source": "workday",
+      "slug": "chemours/wd103/Chemours"
+    },
+    {
+      "name": "amgen",
+      "source": "workday",
+      "slug": "amgen/wd1/careers"
+    },
+    {
+      "name": "cognex",
+      "source": "workday",
+      "slug": "cognex/wd1/External_Career_Site"
+    },
+    {
+      "name": "clearwateranalytics",
+      "source": "workday",
+      "slug": "clearwateranalytics/wd1/Clearwater_Analytics_Careers"
+    },
+    {
+      "name": "UPS",
+      "source": "workday",
+      "slug": "hcmportal/wd5/Search"
+    },
+    {
+      "name": "equifax",
+      "source": "workday",
+      "slug": "equifax/wd5/UR_External"
+    },
+    {
+      "name": "gilead",
+      "source": "workday",
+      "slug": "gilead/wd1/gileadcareers"
+    },
+    {
+      "name": "danaher",
+      "source": "workday",
+      "slug": "danaher/wd1/danaherjobs"
+    },
+    {
+      "name": "dxctechnology",
+      "source": "workday",
+      "slug": "dxctechnology/wd1/dxcjobs"
+    },
+    {
+      "name": "MiniMed",
+      "source": "workday",
+      "slug": "mdtkangaroo/wd108/minimedcareers"
+    },
+    {
+      "name": "momentive",
+      "source": "workday",
+      "slug": "momentive/wd1/MC"
+    },
+    {
+      "name": "kbr",
+      "source": "workday",
+      "slug": "kbr/wd5/KBR_Careers"
+    },
+    {
+      "name": "monolithicpower",
+      "source": "workday",
+      "slug": "monolithicpower/wd12/MPS_Careers"
+    },
+    {
+      "name": "nordsonhcm",
+      "source": "workday",
+      "slug": "nordsonhcm/wd501/nordsoncareers"
+    },
+    {
+      "name": "paloaltonetworks",
+      "source": "workday",
+      "slug": "paloaltonetworks/wd5/hidden-private-pawn-temp-gateway-147258369"
+    },
+    {
+      "name": "nasdaq",
+      "source": "workday",
+      "slug": "nasdaq/wd1/Global_External_Site"
+    },
+    {
+      "name": "tiaa",
+      "source": "workday",
+      "slug": "tiaa/wd1/Search"
+    },
+    {
+      "name": "wexinc",
+      "source": "workday",
+      "slug": "wexinc/wd5/WEXInc"
+    },
+    {
+      "name": "flowserve",
+      "source": "workday",
+      "slug": "flowserve/wd1/applied"
+    },
+    {
+      "name": "rehlko",
+      "source": "workday",
+      "slug": "rehlko/wd12/Reh"
+    },
+    {
+      "name": "Schweitzer Engineering Laboratories",
+      "source": "workday",
+      "slug": "selinc/wd1/SEL"
+    },
+    {
+      "name": "crowdstrike",
+      "source": "workday",
+      "slug": "crowdstrike/wd5/crowdstrikecareers"
+    },
+    {
+      "name": "cardinalhealth",
+      "source": "workday",
+      "slug": "cardinalhealth/wd1/EXT"
+    },
+    {
+      "name": "Air Liquide",
+      "source": "workday",
+      "slug": "airliquidehr/wd3/AirLiquideExternalCareer"
+    },
+    {
+      "name": "GE Aerospace",
+      "source": "workday",
+      "slug": "geaerospace/wd5/ge_externalsite"
+    },
+    {
+      "name": "iqvia",
+      "source": "workday",
+      "slug": "iqvia/wd1/IQVIA"
+    },
+    {
+      "name": "novartis",
+      "source": "workday",
+      "slug": "novartis/wd3/Novartis_Careers"
     }
-  ]
+  ],
+  "internships_only": true,
+  "detail_caps": {
+    "workday": 90,
+    "smartrecruiters": 100,
+    "oracle": 100
+  }
 }

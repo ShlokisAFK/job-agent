@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from agent import notify, picks, rank, tracker  # noqa: E402
+from agent import excerpt, notify, picks, rank, tracker  # noqa: E402
 
 WS_FILES = {"state.md": "# State\n(no runs yet)\n", "chat.md": "# Chat\n", "schedule.md": "",
             "my_updates.md": "# Write one line per job: <id> <sent|skip|applied|followed|replied|interview|rejected|offer> [- note]\n",
@@ -245,7 +245,7 @@ class Supervisor:
         out = ["# Candidates (pre-ranked by keywords; judge them yourself)", ""]
         for s, j in short:
             out += [f"## {j['key']}", f"{j['company_name']} | {j['title']} | {j['location']} | score {s}",
-                    j["description"][:self.cfg.get("chars_per_job", 2000)], ""]
+                    excerpt.excerpt(j["description"], self.cfg.get("chars_per_job", 3500)), ""]
         (self.ws / "candidates.md").write_text("\n".join(out), encoding="utf-8")
         rows = tracker.read(self.ws / "tracker.csv")
         recent = [f"- #{r['id']} {r['company']}: {r['title']} -> {r['status'] or 'no update yet'} {r['notes']}"

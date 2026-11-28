@@ -105,6 +105,15 @@ def apply(actions, cfg, fetcher=fetch_jobs.fetch):
     return changed, report
 
 
+REQUEST = re.compile(r"\b(?:add|remove) company ([^;\n]{1,60}?)\.?\s*(?=;|$)", re.I)
+
+
+def unanswered(message, actions):
+    """Companies named in plain "add company X" requests that no action covers, so none is dropped silently."""
+    done = {str((a or {}).get("name", "")).strip().lower() for a in actions[:10]}
+    return [name for name in REQUEST.findall(message) if name.strip().lower() not in done]
+
+
 def new_messages(inbox, seen_file):
     """Claude's messages ('- [claude ...]' lines) not handled yet, tracked by hash."""
     seen = set(seen_file.read_text().split()) if seen_file.exists() else set()
@@ -131,6 +140,8 @@ def run(data_dir, cfg_path, ask=ask_model, fetcher=fetch_jobs.fetch, now=None):
             changed, report = apply(actions, cfg, fetcher)
             if changed:
                 cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+            report += [f"{name}: not handled, the model returned no action for it; ask again"
+                       for name in unanswered(msg, actions)]
         except Exception as e:
             report = [f"@claude could not handle a message: {type(e).__name__}: {e}"]
         reply = "; ".join(report) if report else "nothing I can act on (I only add/remove companies and locations)"
