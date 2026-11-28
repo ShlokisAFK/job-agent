@@ -978,7 +978,7 @@ class SplitNotificationTests(unittest.TestCase):
         sent = []
         with tempfile.TemporaryDirectory() as d:
             ws = Path(d)
-            self.run_with_picks(ws, lambda t, title, body: sent.append((title, body)))
+            self.run_with_picks(ws, lambda t, title, body, click="": sent.append((title, body)))
             self.assertEqual(len(sent), 4)
             self.assertTrue(sent[0][1].startswith("Follow up"))
             self.assertEqual(sorted(l for _, b in sent[1:] for l in b.splitlines() if l.startswith("https://")),
@@ -987,10 +987,33 @@ class SplitNotificationTests(unittest.TestCase):
             for k in "abc":
                 self.assertIn(f"https://x/{k}", full)
 
+    def posted_headers(self, **kw):
+        from unittest import mock
+        with mock.patch("agent.notify.urllib.request.urlopen") as opened:
+            notify.send("t", "title", "body", **kw)
+        return {k.lower(): v for k, v in opened.call_args[0][0].header_items()}
+
+    def test_tapping_a_notification_opens_its_link(self):
+        self.assertEqual(self.posted_headers(click="https://x/job?id=1")["click"], "https://x/job?id=1")
+        self.assertEqual(self.posted_headers(click="https://x/Zürich job")["click"], "https://x/Z%C3%BCrich%20job")
+
+    def test_no_tap_action_without_a_web_link(self):
+        for link in ("", "(no link listed)", "file:///etc/passwd"):
+            self.assertNotIn("click", self.posted_headers(click=link))
+
+    def test_each_pick_notification_opens_its_own_job(self):
+        taps = []
+        with tempfile.TemporaryDirectory() as d:
+            self.run_with_picks(Path(d), lambda t, title, body, click="": taps.append((click, body)))
+        self.assertEqual(taps[0][0], "")  # the summary lists several jobs, so it opens none
+        self.assertEqual(sorted(c for c, _ in taps[1:]), ["https://x/a", "https://x/b", "https://x/c"])
+        for click, body in taps[1:]:
+            self.assertIn(click, body)
+
     def test_one_failed_message_does_not_stop_the_others(self):
         tried = []
 
-        def send(topic, title, body):
+        def send(topic, title, body, click=""):
             tried.append(title)
             if len(tried) == 2:
                 raise OSError("rate limited")

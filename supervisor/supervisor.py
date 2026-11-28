@@ -203,12 +203,12 @@ class Supervisor:
         return done
 
     # ---------- phone ----------
-    def push(self, title, body):
+    def push(self, title, body, click=""):
         topic = self.cfg.get("ntfy_topic")
         if not topic or self.cfg.get("demo"):
             return False
         try:
-            notify.send(topic, title, body)
+            notify.send(topic, title, body, **({"click": click} if click else {}))
         except Exception as e:
             self.log("notify_failed", err=str(e)[:200])
             return False
@@ -384,7 +384,8 @@ class Supervisor:
             full = "\n".join(reminders) + "\n\n" + full
         (self.ws / "digest.md").write_text(full, encoding="utf-8")
         first_ok = self.push(title, body)
-        pick_oks = [self.push(t, b) for t, b in per_pick]  # a failed one is logged; the rest still go
+        # a failed one is logged and the rest still go; tapping one opens that job
+        pick_oks = [self.push(t, b, r["url"]) for (t, b), r in zip(per_pick, new_rows)]
         if first_ok and reminders:
             self.follow_ups_delivered()
         if first_ok or any(pick_oks):
