@@ -76,7 +76,10 @@ flowchart LR
 - **Phone replies are data, not commands.** They go to a second private ntfy topic and must match the same strict
   one-line format as the file; anything else is reported back. ntfy.sh keeps messages for about 12 hours, so a
   reply sent while the laptop is off longer than that is lost (no confirmation arrives).
-- **Nothing is sent automatically.** Drafts go to Gmail through a draft-only tool; I press Send.
+- **Nothing is sent automatically.** When a picked posting lists a contact email, the outreach tool creates a Gmail
+  draft; I review it and press Send. The tool only ever calls Gmail's draft-create endpoint, and tests fail if any
+  send call is added. Its Google sign-in files live outside every repo, and sign-in links and tokens are redacted
+  from the logs.
 
 ## Safety rails
 - `workspace/STOP`: if this file exists, nothing runs.
@@ -94,7 +97,7 @@ flowchart LR
 ## Run it
 ```
 python -m supervisor.supervisor --demo     # sample data, fake reviewer, touches nothing else
-python -m unittest discover -s tests       # 91 tests
+python -m unittest discover -s tests       # 92 tests
 ```
 Real setup: copy `config.example.json` to `config.json` (gitignored; set your `profile` there), copy `pi/` to the Pi and add a cron line:
 ```

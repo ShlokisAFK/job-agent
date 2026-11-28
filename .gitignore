@@ -9,3 +9,7 @@ __pycache__/
 *token*.json
 *client*.json
 .claude/settings.local.json
+# Google OAuth files (outreach tool): never commit
+credentials*.json
+client_secret*.json
+*.token

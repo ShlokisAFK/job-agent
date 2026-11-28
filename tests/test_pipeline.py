@@ -590,6 +590,25 @@ class ClaudeDenyRuleTests(unittest.TestCase):
             self.assertIn("Bash", denied)  # the existing tool bans are still there
 
 
+class OutreachLogScrubTests(unittest.TestCase):
+    def test_google_sign_in_links_and_tokens_never_reach_the_log(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            sup = Supervisor({"outreach_dir": str(ws)}, ws, now=datetime(2026, 11, 25, 10, 0), runner=lambda p: (0, "", ""))
+            leak = ("Please visit https://accounts.google.com/o/oauth2/auth?client_id=FAKEID&scope=x\n"
+                    '{"token": "FAKE-ACCESS", "refresh_token": "FAKE-REFRESH", "client_secret": "FAKE-SECRET"}\nDrafted: X')
+            done = mock.Mock(returncode=0, stdout=leak, stderr=leak)
+            with mock.patch("supervisor.supervisor.subprocess.run", return_value=done):
+                status = sup.outreach_draft(
+                    {"company": "X", "title": "Intern"},
+                    {"contact_name": "", "contact_email": "jobs@x.com", "hook": "h"})
+            self.assertEqual(status, "drafted")
+            log = (ws / "log.jsonl").read_text(encoding="utf-8")
+            for secret in ("FAKEID", "FAKE-ACCESS", "FAKE-REFRESH", "FAKE-SECRET", "accounts.google.com"):
+                self.assertNotIn(secret, log)
+
+
 class PiSyncFailureTests(unittest.TestCase):
     def test_slow_pi_connection_does_not_stop_the_run(self):
         import subprocess

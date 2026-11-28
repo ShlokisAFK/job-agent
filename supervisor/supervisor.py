@@ -34,6 +34,13 @@ HARD_WAKE_CAP = 4  # never more than 4 Claude wakes a day, whatever config.json 
 PROTECTED_PATHS = ("~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.config/gh/**", "~/.git-credentials",
                    "~/.claude/**", "~/.claude.json", ".claude/**")
 DENY_RULES = [f"{tool}({path})" for path in PROTECTED_PATHS for tool in ("Read", "Write", "Edit")]
+# Google sign-in links and token or client-secret fields must never reach the job agent's logs.
+_SECRET_BITS = re.compile(r"https://accounts\.google\.com/\S+"
+                          r"|\"?(?:refresh_token|access_token|client_secret|token)\"?\s*[:=]\s*\"?[^\s\",}]+", re.I)
+
+
+def scrub(text):
+    return _SECRET_BITS.sub("<redacted>", text or "")
 
 
 class Supervisor:
@@ -307,7 +314,7 @@ class Supervisor:
         r = self._outreach(["draft", str(csv_path)])
         if r is None:
             return "demo: not drafted"
-        self.log("outreach_draft", rc=r.returncode, out=r.stdout[-300:], err=r.stderr[-300:])
+        self.log("outreach_draft", rc=r.returncode, out=scrub(r.stdout)[-300:], err=scrub(r.stderr)[-300:])
         return "drafted" if r.returncode == 0 and "Drafted:" in r.stdout else "draft failed"
 
     def outreach_mark_sent(self, row):
@@ -315,7 +322,7 @@ class Supervisor:
             return
         r = self._outreach(["mark_sent", str(self.ws / "outreach_contacts.csv"), row["company"]])
         if r is not None:
-            self.log("outreach_mark_sent", rc=r.returncode, out=r.stdout[-200:], err=r.stderr[-200:])
+            self.log("outreach_mark_sent", rc=r.returncode, out=scrub(r.stdout)[-200:], err=scrub(r.stderr)[-200:])
 
     # ---------- main flow ----------
     def run(self, force=False):
