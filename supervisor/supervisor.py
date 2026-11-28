@@ -29,6 +29,11 @@ WS_FILES = {"state.md": "# State\n(no runs yet)\n", "chat.md": "# Chat\n", "sche
             "my_updates.md": "# Write one line per job: <id> <sent|skip|applied|followed|replied|interview|rejected|offer> [- note]\n",
             "pi_inbox.md": ""}
 HARD_WAKE_CAP = 4  # never more than 4 Claude wakes a day, whatever config.json says
+# Paths headless Claude must never read or change: credentials and Claude's own config.
+# Deny rules win over --allowedTools, so these hold even though Read, Write and Edit are allowed.
+PROTECTED_PATHS = ("~/.ssh/**", "~/.aws/**", "~/.gnupg/**", "~/.config/gh/**", "~/.git-credentials",
+                   "~/.claude/**", "~/.claude.json", ".claude/**")
+DENY_RULES = [f"{tool}({path})" for path in PROTECTED_PATHS for tool in ("Read", "Write", "Edit")]
 
 
 class Supervisor:
@@ -232,7 +237,7 @@ class Supervisor:
             raise RuntimeError("claude CLI not found on PATH")
         cmd = [exe, "-p", prompt, "--model", self.cfg.get("claude_model", "sonnet"), "--permission-mode", "acceptEdits",
                "--allowedTools", "Read", "Write", "Edit",
-               "--disallowedTools", "Bash", "PowerShell", "WebFetch", "WebSearch", "Agent"]
+               "--disallowedTools", "Bash", "PowerShell", "WebFetch", "WebSearch", "Agent", *DENY_RULES]
         r = subprocess.run(cmd, cwd=self.ws, capture_output=True, text=True, encoding="utf-8",
                            timeout=self.cfg.get("claude_timeout_s", 600))
         return r.returncode, (r.stdout or "")[-2000:], (r.stderr or "")[-1000:]

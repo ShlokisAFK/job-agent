@@ -11,12 +11,16 @@ from pi.fetch_jobs import is_internship
 from . import eligibility, tracker
 
 POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
-    "intern": 6, "internship": 6, "graduate": 4, "new grad": 5, "fresher": 5, "entry level": 4, "university": 3,
+    "intern": 6, "internship": 6, "fresher": 5, "entry level": 4, "university": 3,
     "machine learning": 4, "ml ": 3, "deep learning": 4, "ai ": 2, "llm": 3, "nlp": 2, "computer vision": 3,
     "data scien": 3, "data engineer": 2, "python": 2, "pytorch": 3, "xgboost": 3, "fastapi": 2, "docker": 1,
     "security": 2, "malware": 4, "threat": 2, "research": 2, "software engineer": 5, "backend": 3, "sde": 4,
     "ai engineer": 6, "ml engineer": 6, "machine learning engineer": 6, "applied ": 3, "full stack": 2, "software developer": 4,
 }
+# New-grad wording usually means a full-time role for people who have finished their degree, so it only
+# adds to the score when the title also says intern (for example "Graduate Intern").
+GRAD_TERMS = {"graduate": 4, "new grad": 5}
+INTERN_WORD = re.compile(r"\bintern(s|ship|ships)?\b")  # a whole word, so "Internal" does not count
 NEGATIVE = {  # term -> penalty; matched in title only. Seniority and non-engineering titles are big enough to drop a job.
     "senior": 60, "sr.": 60, " sr ": 60, "staff": 60, "principal": 60, "lead": 40, "manager": 40, "director": 60,
     "head of": 60, "vp": 60, "architect": 40, " ii": 40, " iii": 60, " iv": 60,
@@ -35,10 +39,16 @@ def score(job):
     desc = " " + job.get("description", "").lower() + " "
     s = 0
     for term, w in POSITIVE.items():
-        if term in title:
+        if (INTERN_WORD.search(title) if term == "intern" else term in title):  # "Internal" is not "intern"
             s += 3 * w
         elif term in desc:
             s += w
+    if INTERN_WORD.search(title):
+        for term, w in GRAD_TERMS.items():
+            if term in title:
+                s += 3 * w
+            elif term in desc:
+                s += w
     for term, w in NEGATIVE.items():
         if term in title:
             s -= w

@@ -253,6 +253,32 @@ class RankTests(unittest.TestCase):
     def test_excluded_keys_skipped(self):
         self.assertEqual(rank.shortlist([job("a")], {"a"}), [])
 
+    def test_new_grad_wording_only_helps_intern_titles(self):
+        desc = "build services"
+        # Without "intern" in the title, new-grad wording adds nothing, in the title or the description.
+        self.assertEqual(rank.score(job("a", "New Grad Analyst", desc)), rank.score(job("b", "Analyst", desc)))
+        self.assertEqual(rank.score(job("c", "Analyst", "graduate role, " + desc)),
+                         rank.score(job("d", "Analyst", desc)))
+        # With "intern" in the title it still counts.
+        self.assertGreater(rank.score(job("e", "Graduate Intern", desc)), rank.score(job("f", "Intern", desc)))
+        self.assertGreater(rank.score(job("g", "Intern", "new grad welcome, " + desc)),
+                           rank.score(job("h", "Intern", desc)))
+        self.assertGreater(rank.score(job("i", "Graduate Internship", desc)),
+                           rank.score(job("j", "Internship", desc)))
+
+    def test_internal_in_title_gets_no_intern_boost(self):
+        desc = "build services"
+        self.assertEqual(rank.score(job("a", "Internal Tools Analyst", desc)),
+                         rank.score(job("b", "Tools Analyst", desc)))
+        # Real intern titles keep their boost.
+        self.assertGreater(rank.score(job("c", "Tools Intern", desc)), rank.score(job("d", "Tools Analyst", desc)))
+        self.assertGreater(rank.score(job("e", "Tools Internship", desc)), rank.score(job("f", "Tools Intern", desc)))
+
+    def test_internal_is_not_intern_for_new_grad_wording(self):
+        desc = "build services"
+        self.assertEqual(rank.score(job("a", "Internal Tools Analyst", "new grad or graduate, " + desc)),
+                         rank.score(job("b", "Internal Tools Analyst", desc)))
+
 
 class PicksTests(unittest.TestCase):
     cands = {"a": job("a", desc="mail jobs@acme.com"), "b": job("b")}
@@ -538,6 +564,23 @@ class SupervisorTests(unittest.TestCase):
         # a was picked, b was shown and not picked: neither comes back
         self.assertEqual(self.sup().run(force=True), "nothing new")
         self.assertEqual(self.calls, 1)
+
+
+class ClaudeDenyRuleTests(unittest.TestCase):
+    def test_headless_claude_is_denied_credentials_and_claude_config(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            sup = Supervisor({"demo": True}, Path(d), now=datetime(2026, 11, 25, 10, 0), runner=lambda p: (0, "", ""))
+            done = mock.Mock(returncode=0, stdout="", stderr="")
+            with mock.patch("supervisor.supervisor.shutil.which", return_value="claude"), \
+                    mock.patch("supervisor.supervisor.subprocess.run", return_value=done) as run:
+                sup._run_claude("hi")
+            cmd = run.call_args[0][0]
+            denied = cmd[cmd.index("--disallowedTools") + 1:]
+            for path in ("~/.ssh/**", "~/.claude/**", "~/.claude.json", ".claude/**"):
+                for tool in ("Read", "Write", "Edit"):
+                    self.assertIn(f"{tool}({path})", denied)
+            self.assertIn("Bash", denied)  # the existing tool bans are still there
 
 
 class PiSyncFailureTests(unittest.TestCase):
