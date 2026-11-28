@@ -1,9 +1,9 @@
 {
-  "workspace": "D:/Claude/job-agent/workspace",
-  "master_resume": "D:/Claude/cv/master_resume.md",
-  "outreach_dir": "D:/Claude/cv/outreach",
-  "pi_host": "pi-claude",
-  "pi_data_dir": "/home/shlok/job-agent/data",
+  "workspace": "C:/path/to/job-agent/workspace",
+  "master_resume": "C:/path/to/cv/master_resume.md",
+  "outreach_dir": "C:/path/to/cv/outreach",
+  "pi_host": "YOUR-PI-SSH-HOST",
+  "pi_data_dir": "/home/YOUR-PI-USER/job-agent/data",
   "ntfy_topic": "PUT-A-LONG-RANDOM-TOPIC-HERE",
   "ntfy_reply_topic": "PUT-A-SECOND-LONG-RANDOM-TOPIC-HERE",
   "followup_days": 7,
@@ -21,6 +21,6 @@
     "cgpa": 7.0,
     "internships_only": false
   },
-  "profile_md": "D:/Claude/cv/job_profile.md",
+  "profile_md": "C:/path/to/cv/job_profile.md",
   "chars_per_job": 3500
 }

@@ -3,6 +3,10 @@
 A small multi-agent system that finds internship and early-career roles for me, picks the ones that
 actually fit my background, drafts outreach emails and pings my phone with a daily shortlist.
 
+**How it was built:** this project was built with Claude Code (Anthropic's coding agent), which wrote the code
+and tests. I set the goals, run it on my own laptop and Raspberry Pi, and use it for my own internship search.
+Claude also runs inside the system as the reviewer described below.
+
 Two LLM agents (Claude and a small model on a Raspberry Pi) plus plain scripts, talking through files, with one human in charge:
 
 ```mermaid
@@ -76,7 +80,13 @@ flowchart LR
 
 ## Safety rails
 - `workspace/STOP`: if this file exists, nothing runs.
-- Claude runs with `Read`, `Write`, `Edit` only: no shell, no web, no subagents, inside the workspace folder.
+- Claude runs with `Read`, `Write`, `Edit` only: no shell, no web, no subagents. It starts in the workspace folder,
+  but these tools can reach files outside it, so credential and config paths are denied outright.
+- Deny rules block reading or changing `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.git-credentials`,
+  `~/.claude`, `~/.claude.json` and the workspace `.claude` folder. Live decoy tests confirmed they also stop
+  `Glob` and `Grep`.
+- `config.json` (with the private ntfy topics), `workspace/`, `pi/data/` and `.claude/settings.local.json` are
+  gitignored.
 - Hard timeout (10 min) and a daily wake cap (`max_wakes_per_day`, never more than 4). A run with 0 picks still sends a phone message with the reasons and retries on the next unreviewed jobs 3 hours later (`retry_gap_hours`, not after `retry_until`).
 - Everything is logged to `workspace/log.jsonl`.
 - Claude is told to use only facts marked *Verified* in my resume audit.
@@ -84,7 +94,7 @@ flowchart LR
 ## Run it
 ```
 python -m supervisor.supervisor --demo     # sample data, fake reviewer, touches nothing else
-python -m unittest discover -s tests       # 86 tests
+python -m unittest discover -s tests       # 91 tests
 ```
 Real setup: copy `config.example.json` to `config.json` (gitignored; set your `profile` there), copy `pi/` to the Pi and add a cron line:
 ```
