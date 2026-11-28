@@ -137,3 +137,5 @@ demo/                     sample data for --demo
 ## Next
 - More boards, and per-company scrapers for companies without a public API.
 - Reply-rate stats per company and hook style, once there is a month of data.
+
+Licensed under the [MIT License](LICENSE).
