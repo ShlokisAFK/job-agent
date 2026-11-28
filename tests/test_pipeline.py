@@ -274,6 +274,13 @@ class RankTests(unittest.TestCase):
         self.assertGreater(rank.score(job("c", "Tools Intern", desc)), rank.score(job("d", "Tools Analyst", desc)))
         self.assertGreater(rank.score(job("e", "Tools Internship", desc)), rank.score(job("f", "Tools Intern", desc)))
 
+    def test_internal_in_description_gets_no_intern_boost(self):
+        self.assertEqual(rank.score(job("a", "Tools Analyst", "work on internal tools and international teams")),
+                         rank.score(job("b", "Tools Analyst", "work on tools and teams")))
+        # A real intern mention in the description still counts.
+        self.assertGreater(rank.score(job("c", "Tools Analyst", "this is an intern role on tools")),
+                           rank.score(job("d", "Tools Analyst", "this is a role on tools")))
+
     def test_internal_is_not_intern_for_new_grad_wording(self):
         desc = "build services"
         self.assertEqual(rank.score(job("a", "Internal Tools Analyst", "new grad or graduate, " + desc)),

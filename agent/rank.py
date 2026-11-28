@@ -41,7 +41,7 @@ def score(job):
     for term, w in POSITIVE.items():
         if (INTERN_WORD.search(title) if term == "intern" else term in title):  # "Internal" is not "intern"
             s += 3 * w
-        elif term in desc:
+        elif (INTERN_WORD.search(desc) if term == "intern" else term in desc):
             s += w
     if INTERN_WORD.search(title):
         for term, w in GRAD_TERMS.items():
