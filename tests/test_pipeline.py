@@ -857,5 +857,149 @@ class PhoneReplyTests(unittest.TestCase):
             self.assertEqual(p.call_count, 0)
 
 
+def run_once(ws, jobs):
+    """One supervisor run on 2026-11-28 with a Claude that picks nothing."""
+    (ws / "inbox").mkdir(exist_ok=True)
+    (ws / "inbox" / "backlog.jsonl").write_text("".join(json.dumps(j) + "\n" for j in jobs))
+    (ws / "resume.md").write_text("resume")
+
+    def claude(_p):
+        (ws / "picks.json").write_text('{"picks": []}')
+        return 0, "", ""
+    cfg = {"demo": True, "master_resume": str(ws / "resume.md")}
+    return Supervisor(cfg, ws, now=datetime(2026, 11, 28, 10, 0), runner=claude).run()
+
+
+class MaxAgeTests(unittest.TestCase):
+    def keys(self, jobs, **kw):
+        return sorted(j["key"] for _, j in rank.shortlist(jobs, set(), today="2026-11-28", **kw))
+
+    def test_jobs_posted_more_than_30_days_ago_are_skipped(self):
+        jobs = [job("new", posted="2026-11-27"), job("day30", posted="2026-10-29T23:00:00-04:00"),
+                job("day31", posted="2026-10-28T10:00:00.000Z"), job("old", posted="2026-04-24T07:53:06.207000+00:00")]
+        self.assertEqual(self.keys(jobs), ["day30", "new"])
+
+    def test_a_job_with_no_readable_date_is_kept(self):
+        self.assertEqual(self.keys([job("blank", posted=""), job("odd", posted="soon")]), ["blank", "odd"])
+
+    def test_the_limit_can_be_changed_or_turned_off(self):
+        jobs = [job("a", posted="2026-11-20"), job("b", posted="2026-04-24")]
+        self.assertEqual(self.keys(jobs, max_age_days=5), [])
+        self.assertEqual(self.keys(jobs, max_age_days=None), ["a", "b"])
+
+    def test_supervisor_never_shows_claude_an_old_job(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            run_once(ws, [job("fresh", posted="2026-11-20"), job("stale", posted="2026-10-01")])
+            text = (ws / "candidates.md").read_text(encoding="utf-8")
+            self.assertIn("## fresh", text)
+            self.assertNotIn("## stale", text)
+
+
+class AppliedSkipTests(unittest.TestCase):
+    def test_applied_and_every_later_status_count_but_sent_and_skip_do_not(self):
+        statuses = ["applied", "followed", "replied", "interview", "rejected", "offer", "sent", "skip", ""]
+        rows = [row(str(i), s, "2026-11-01", company=f"co {s}") for i, s in enumerate(statuses)]
+        self.assertEqual(tracker.applied_companies(rows),
+                         {"coapplied", "cofollowed", "coreplied", "cointerview", "corejected", "cooffer"})
+
+    def test_every_job_from_an_applied_company_is_skipped(self):
+        jobs = [dict(job("r"), company="revvity", company_name="revvity"),
+                dict(job("i"), company="ibm", company_name="IBM"),
+                dict(job("g"), company="gevernova", company_name="GE Vernova"),
+                dict(job("n"), company="ibmx", company_name="IBMX Labs")]
+        applied = tracker.applied_companies([row("1", "applied", "", company="Revvity"),
+                                             row("2", "applied", "", company="IBM"),
+                                             row("3", "applied", "", company="GEVernova")])
+        self.assertEqual([j["key"] for _, j in rank.shortlist(jobs, set(), applied_companies=applied)], ["n"])
+
+    def test_supervisor_skips_applied_companies_and_applied_jobs(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            jobs = [dict(job("samecompany"), company="revvity", company_name="revvity"),
+                    dict(job("samejob"), company="y", company_name="Y"),
+                    dict(job("other"), company="z", company_name="Z")]
+            tracker.write(ws / "tracker.csv", [row("1", "applied", "2026-11-27", company="Revvity"),
+                                               dict(row("2", "applied", "2026-11-27", company="Y"), key="samejob")])
+            run_once(ws, jobs)
+            text = (ws / "candidates.md").read_text(encoding="utf-8")
+            self.assertIn("## other", text)
+            self.assertNotIn("## samecompany", text)
+            self.assertNotIn("## samejob", text)
+
+    def test_a_company_marked_applied_in_updates_is_skipped_in_the_same_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            tracker.write(ws / "tracker.csv", [row("1", "", "", company="X")])
+            (ws / "my_updates.md").write_text("1 applied\n")
+            self.assertEqual(run_once(ws, [job("a")]), "nothing new")
+
+
+class SplitNotificationTests(unittest.TestCase):
+    def rows(self, n):
+        return [{"id": str(i), "company": f"Company{i}", "title": "Software Engineering Intern " * 3,
+                 "location": "Bengaluru, India", "posted": "2026-11-20", "why": "w" * 300,
+                 "url": "https://example.com/" + "p" * 150, "draft": ""} for i in range(13, 13 + n)]
+
+    def test_summary_names_every_pick_and_stays_short(self):
+        title, body = picks.messages(self.rows(10), "2026-11-28")[0]
+        self.assertEqual(title, "job-agent: 10 picks")
+        for i in range(13, 23):
+            self.assertIn(f"#{i} Company{i}", body)
+        self.assertNotIn("https://", body)
+        self.assertIn("Reply from your phone", body)
+        self.assertLess(len(body.encode()), 1200)
+
+    def test_each_pick_gets_its_own_message_under_the_ntfy_limit(self):
+        msgs = picks.messages(self.rows(10), "2026-11-28")
+        self.assertEqual(len(msgs), 11)
+        for i, (title, body) in zip(range(13, 23), msgs[1:]):
+            self.assertEqual(title, f"#{i} Company{i}")
+            for part in ("Software Engineering Intern", "posted 2026-11-20", "why: www", "https://example.com/"):
+                self.assertIn(part, body)
+            self.assertLess(len(body.encode()), notify.LIMIT)
+
+    def run_with_picks(self, ws, send):
+        from unittest import mock
+
+        def claude(_p):
+            (ws / "picks.json").write_text(json.dumps({"picks": [{"key": k, "why": "fits", "hook": "h"}
+                                                                 for k in ("a", "b", "c")]}))
+            return 0, "", ""
+        (ws / "inbox").mkdir()
+        (ws / "inbox" / "backlog.jsonl").write_text("".join(json.dumps(job(k)) + "\n" for k in "abc"))
+        (ws / "resume.md").write_text("resume")
+        tracker.write(ws / "tracker.csv", [row("1", "sent", "2026-11-10")])
+        cfg = {"master_resume": str(ws / "resume.md"), "ntfy_topic": "t"}
+        with mock.patch("supervisor.supervisor.notify.send", side_effect=send):
+            Supervisor(cfg, ws, now=datetime(2026, 11, 26, 10, 0), runner=claude).run()
+
+    def test_supervisor_sends_a_summary_then_one_message_per_pick(self):
+        sent = []
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            self.run_with_picks(ws, lambda t, title, body: sent.append((title, body)))
+            self.assertEqual(len(sent), 4)
+            self.assertTrue(sent[0][1].startswith("Follow up"))
+            self.assertEqual(sorted(l for _, b in sent[1:] for l in b.splitlines() if l.startswith("https://")),
+                             ["https://x/a", "https://x/b", "https://x/c"])
+            full = (ws / "digest.md").read_text(encoding="utf-8")  # the file still holds everything
+            for k in "abc":
+                self.assertIn(f"https://x/{k}", full)
+
+    def test_one_failed_message_does_not_stop_the_others(self):
+        tried = []
+
+        def send(topic, title, body):
+            tried.append(title)
+            if len(tried) == 2:
+                raise OSError("rate limited")
+        with tempfile.TemporaryDirectory() as d:
+            ws = Path(d)
+            self.run_with_picks(ws, send)
+            self.assertEqual(len(tried), 4)
+            self.assertIn("notify_failed", (ws / "log.jsonl").read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

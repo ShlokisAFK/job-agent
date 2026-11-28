@@ -59,6 +59,11 @@ flowchart LR
   Claude is woken once a day (or early if the Pi flags a problem with `@claude`), capped per day.
 - **Hard rules in code, judgment in models.** Eligibility lines like "CGPA 8 and above, 2027 graduates only" are
   caught by code anywhere in the posting, before Claude sees the job. The models decide; code checks.
+  Jobs posted more than 30 days ago (`max_age_days`) are skipped; a job with no date is kept. So is every job from a
+  company with a tracker row marked `applied`, or a status that can replace it (`followed`, `replied`, `interview`,
+  `rejected`, `offer`). For a company applied to elsewhere, add a `tracker.csv` row with its name and `applied`.
+- **One notification per pick.** The phone gets a short summary, then each pick on its own, because a notification
+  shows only the start of a long message. `digest.md` keeps the full text.
 - **The small model filters, it does not decide.** On 45 labelled titles, Qwen3-4B-Instruct scored 44 (the old
   Qwen2 0.5B found none of the 11 good ones). On full postings it passed senior roles and invented reasons,
   so it only ever sees titles.
@@ -79,7 +84,7 @@ flowchart LR
 ## Run it
 ```
 python -m supervisor.supervisor --demo     # sample data, fake reviewer, touches nothing else
-python -m unittest discover -s tests       # 71 tests
+python -m unittest discover -s tests       # 83 tests
 ```
 Real setup: copy `config.example.json` to `config.json` (gitignored; set your `profile` there), copy `pi/` to the Pi and add a cron line:
 ```

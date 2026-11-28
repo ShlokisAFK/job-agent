@@ -11,6 +11,17 @@ YOUR_COLS = ["status", "updated_on", "notes"]
 COLUMNS = PIPE_COLS + YOUR_COLS
 STATUSES = {"sent", "skip", "applied", "followed", "replied", "interview", "rejected", "offer"}
 WAITING = {"sent", "applied"}  # no answer yet; any later update (including "followed") ends the reminder
+# A later status replaces "applied" in the row, so these all keep the company skipped.
+APPLIED = {"applied", "followed", "replied", "interview", "rejected", "offer"}
+
+
+def company_id(name):
+    """'GE Vernova' and 'gevernova' are the same company."""
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def applied_companies(rows):
+    return {company_id(r.get("company")) for r in rows if r.get("status") in APPLIED} - {""}
 
 
 def read(path):

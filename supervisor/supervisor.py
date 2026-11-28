@@ -329,13 +329,16 @@ class Supervisor:
         if self.wakes_today() >= self.wake_cap():
             self.log("cap_reached", wakes=self.wakes_today())
             return "cap"
-        excluded = {r["key"] for r in tracker.read(self.ws / "tracker.csv")}
+        tracked = tracker.read(self.ws / "tracker.csv")
+        excluded = {r["key"] for r in tracked}
         rv = self.ws / "reviewed.txt"
         if rv.exists():
             excluded |= set(rv.read_text(encoding="utf-8").split())
         verdicts = self.verdicts()
         short = rank.shortlist(list(jobs.values()), excluded, self.cfg.get("shortlist_size", 30),
-                               self.cfg.get("profile", {}), verdicts)
+                               self.cfg.get("profile", {}), verdicts, today=self.today,
+                               max_age_days=self.cfg.get("max_age_days", 30),
+                               applied_companies=tracker.applied_companies(tracked))
         if not short and not urgent:
             self.log("nothing_new")
             reminders = self.pending_follow_ups()
@@ -360,8 +363,8 @@ class Supervisor:
             self.set_next_wake((self.now + timedelta(days=1)).replace(hour=int(self.cfg.get("daily_time", "09:00")[:2]), minute=0))
         new_rows = self.process_picks(jobs)
         if new_rows:
-            title = f"job-agent: {len(new_rows)} picks"
-            body = picks.digest(new_rows, self.today)
+            (title, body), *per_pick = picks.messages(new_rows, self.today)
+            full = picks.digest(new_rows, self.today)
             self.chat(f"picked {len(new_rows)} jobs; digest written")
         else:
             retry = self.plan_retry()
@@ -374,14 +377,18 @@ class Supervisor:
             body = "\n".join([f"0 picks from {len(short)} jobs on {self.today}.", nxt, "",
                               "Claude said:", *(f"- {s}" for s in said or ["(no notes)"])])
             self.chat(f"picked 0 jobs; {nxt}")
+            full, per_pick = body, []
         reminders = self.pending_follow_ups()
         if reminders:  # first in the message, so a long digest never cuts them off
             body = "\n".join(reminders) + "\n\n" + body
-        (self.ws / "digest.md").write_text(body, encoding="utf-8")
-        if self.push(title, body):
-            self.log("notified", n=len(new_rows))
-            if reminders:
-                self.follow_ups_delivered()
+            full = "\n".join(reminders) + "\n\n" + full
+        (self.ws / "digest.md").write_text(full, encoding="utf-8")
+        first_ok = self.push(title, body)
+        pick_oks = [self.push(t, b) for t, b in per_pick]  # a failed one is logged; the rest still go
+        if first_ok and reminders:
+            self.follow_ups_delivered()
+        if first_ok or any(pick_oks):
+            self.log("notified", n=len(new_rows), messages=sum([first_ok, *pick_oks]))
         self.push_to_pi()
         return f"picked {len(new_rows)}"
 
@@ -414,7 +421,8 @@ def main():
         shutil.rmtree(ws, ignore_errors=True)
         (ws / "inbox").mkdir(parents=True)
         shutil.copyfile(ROOT / "demo" / "sample_backlog.jsonl", ws / "inbox" / "backlog.jsonl")
-        cfg = {"demo": True, "master_resume": str(ROOT / "demo" / "sample_resume.md")}
+        cfg = {"demo": True, "master_resume": str(ROOT / "demo" / "sample_resume.md"),
+               "max_age_days": None}  # the sample dates are fixed, so they would age out
         sup = Supervisor(cfg, ws, runner=demo_runner(ws))
         print(sup.run(force=True))
         print((ws / "digest.md").read_text(encoding="utf-8"))

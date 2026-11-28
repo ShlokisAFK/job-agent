@@ -4,10 +4,11 @@ Plain keyword scoring against a profile built from master_resume.md.
 It is deliberately simple: Claude makes the real judgment on the shortlist.
 """
 import re
+from datetime import date
 
 from pi.fetch_jobs import is_internship
 
-from . import eligibility
+from . import eligibility, tracker
 
 POSITIVE = {  # term -> weight; matched in title (x3) and description (x1)
     "intern": 6, "internship": 6, "graduate": 4, "new grad": 5, "fresher": 5, "entry level": 4, "university": 3,
@@ -58,13 +59,29 @@ def _same_posting(job):
                  for k in ("company", "title", "location", "description"))
 
 
-def shortlist(jobs, exclude_keys, n=30, profile=None, verdicts=None):
-    """Top n by score. Jobs whose posting rules you out (batch year, CGPA) never reach Claude."""
+def too_old(job, today, max_age_days):
+    """Posted more than max_age_days before today. A missing or unreadable date is not treated as old."""
+    if not today or max_age_days is None:
+        return False
+    try:
+        posted = date.fromisoformat(str(job.get("posted", ""))[:10])
+    except ValueError:
+        return False
+    return (date.fromisoformat(today) - posted).days > max_age_days
+
+
+def shortlist(jobs, exclude_keys, n=30, profile=None, verdicts=None, today=None, max_age_days=30,
+              applied_companies=()):
+    """Top n by score. Jobs whose posting rules you out (batch year, CGPA), old postings and
+    companies you already applied to never reach Claude."""
     profile = profile or {}
     verdicts = verdicts or {}  # the Pi model's title check: only an explicit "no" drops a job
     scored = [(score(j), j) for j in jobs
               if j["key"] not in exclude_keys and verdicts.get(j["key"]) != "no" and not eligibility.check(j, profile)
-              and (not profile.get("internships_only") or is_internship(j))]
+              and (not profile.get("internships_only") or is_internship(j))
+              and not too_old(j, today, max_age_days)
+              and not {tracker.company_id(j.get("company")), tracker.company_id(j.get("company_name"))}
+              & set(applied_companies)]
     scored = [(s, j) for s, j in scored if s > 0]  # negative = clearly not a student role
     scored.sort(key=lambda sj: (sj[0], sj[1].get("posted", "")), reverse=True)
     taken = {_same_posting(j) for j in jobs if j["key"] in exclude_keys}

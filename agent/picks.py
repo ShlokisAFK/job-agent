@@ -58,17 +58,44 @@ def follow_up_lines(due):
     return out
 
 
+REPLY_HELP = "Reply from your phone or in my_updates.md, one per line, e.g. 3 sent / 7 skip / 2 replied - call Friday"
+
+
+def _headline(r):
+    return f"{r['title']} ({r['location']}, {show_date(r['posted'])})"
+
+
+def _details(r):
+    out = [f"why: {r['why']}"]
+    if r.get("draft"):
+        out.append(f"draft ready in Gmail ({r['draft']})")
+    out.append(r["url"] or "(no link listed)")
+    return out
+
+
 def digest(rows, today, extra_lines=()):
-    """rows: tracker rows for today's picks. Markdown text for the phone notification."""
+    """rows: tracker rows for today's picks. The full text, saved as digest.md."""
     out = [f"Top {len(rows)} jobs for {today}", ""]
     for r in rows:
-        link = r["url"] or "(no link listed)"
-        out.append(f"#{r['id']} {r['company']}: {r['title']} ({r['location']}, {show_date(r['posted'])})")
-        out.append(f"   why: {r['why']}")
-        if r.get("draft"):
-            out.append(f"   draft ready in Gmail ({r['draft']})")
-        out.append(f"   {link}")
+        out.append(f"#{r['id']} {r['company']}: {_headline(r)}")
+        out += [f"   {line}" for line in _details(r)]
     out.append("")
-    out.append("Reply from your phone or in my_updates.md, one per line, e.g. 3 sent / 7 skip / 2 replied - call Friday")
+    out.append(REPLY_HELP)
     out.extend(extra_lines)
     return "\n".join(out)
+
+
+def messages(rows, today):
+    """Phone notifications as [(title, body)]: a short summary, then one per pick.
+
+    A phone notification shows only the start of a long message, so one message
+    with every pick looks like it holds just the first one.
+    """
+    summary = [f"{len(rows)} jobs for {today}, details follow"]
+    for r in rows:
+        line = f"#{r['id']} {r['company']}: {r['title']}"
+        summary.append(line if len(line) <= 70 else line[:67] + "...")
+    summary += ["", REPLY_HELP]
+    out = [(f"job-agent: {len(rows)} picks", "\n".join(summary))]
+    out += [(f"#{r['id']} {r['company']}", "\n".join([_headline(r), *_details(r)])) for r in rows]
+    return out
